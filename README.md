@@ -143,3 +143,7 @@ If you’ve ever been frustrated by Flutter boilerplate — this project is for 
 ## 📄 License
 
 MIT License
+
+## On Windows
+
+iOS flavor generation requires macOS + Xcode + CocoaPods.
