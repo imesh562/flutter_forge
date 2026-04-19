@@ -1,6 +1,3 @@
-# flutter_forge
-Production-ready Flutter app and feature generator CLI — eliminate boilerplate, enforce Clean Architecture, and build faster. ⚡
-
 # ⚒️ flutter_forge
 
 **Stop writing boilerplate. Start building products.**
