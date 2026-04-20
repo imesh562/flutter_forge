@@ -1,10 +1,11 @@
 import 'package:flutter_forge/src/models/project_config.dart';
 import 'package:flutter_forge/src/utils/file_utils.dart';
+import 'package:path/path.dart' as p;
 
 final class AnalyticsGenerator {
   Future<void> run(ProjectConfig config) async {
     final pkg = config.projectName;
-    final base = '${config.projectPath}/lib/core/analytics';
+    final base = p.join(config.projectPath, 'lib', 'core', 'analytics');
 
     final futs = <Future<void>>[
       _writeInterface(base),
@@ -19,7 +20,7 @@ final class AnalyticsGenerator {
 
   Future<void> _writeInterface(String base) async {
     await FileUtils.writeFile(
-      '$base/analytics_service.dart',
+      p.join(base, 'analytics_service.dart'),
       '''
 /// Contract that all analytics providers must implement.
 abstract interface class AnalyticsService {
@@ -34,7 +35,7 @@ abstract interface class AnalyticsService {
 
   Future<void> _writeFirebaseService(String base) async {
     await FileUtils.writeFile(
-      '$base/firebase_analytics_service.dart',
+      p.join(base, 'firebase_analytics_service.dart'),
       '''
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:injectable/injectable.dart';
@@ -66,7 +67,7 @@ final class FirebaseAnalyticsService implements AnalyticsService {
 
   Future<void> _writeMixpanelService(String base, String pkg) async {
     await FileUtils.writeFile(
-      '$base/mixpanel_analytics_service.dart',
+      p.join(base, 'mixpanel_analytics_service.dart'),
       '''
 import 'package:injectable/injectable.dart';
 import 'package:mixpanel_flutter/mixpanel_flutter.dart';
@@ -130,7 +131,7 @@ final class MixpanelAnalyticsService implements AnalyticsService {
     servicesList.write(']');
 
     await FileUtils.writeFile(
-      '$base/composite_analytics_service.dart',
+      p.join(base, 'composite_analytics_service.dart'),
       '''
 import 'package:injectable/injectable.dart';
 

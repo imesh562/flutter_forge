@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter_forge/src/models/flavor_config.dart';
 import 'package:flutter_forge/src/models/project_config.dart';
+import 'package:path/path.dart' as p;
 
 /// Adds per-flavor Xcode build configurations and schemes for `--flavor` support.
 ///
@@ -14,10 +15,10 @@ final class IosGenerator {
   final _rng = Random.secure();
 
   Future<void> run(ProjectConfig config) async {
-    final projectDir = '${config.projectPath}/ios/Runner.xcodeproj';
-    final pbxprojPath = '$projectDir/project.pbxproj';
-    final schemesDir = '$projectDir/xcshareddata/xcschemes';
-    final podfilePath = '${config.projectPath}/ios/Podfile';
+    final projectDir = p.join(config.projectPath, 'ios', 'Runner.xcodeproj');
+    final pbxprojPath = p.join(projectDir, 'project.pbxproj');
+    final schemesDir = p.join(projectDir, 'xcshareddata', 'xcschemes');
+    final podfilePath = p.join(config.projectPath, 'ios', 'Podfile');
 
     await _patchPodfile(podfilePath, config);
     await _patchDeploymentTarget(pbxprojPath);
@@ -95,7 +96,7 @@ final class IosGenerator {
   // ── Info.plist ────────────────────────────────────────────────────────────
 
   Future<void> _patchInfoPlist(ProjectConfig config) async {
-    final file = File('${config.projectPath}/ios/Runner/Info.plist');
+    final file = File(p.join(config.projectPath, 'ios', 'Runner', 'Info.plist'));
     if (!file.existsSync()) return;
     final updated = file.readAsStringSync().replaceFirst(
       RegExp(r'<key>CFBundleDisplayName</key>\s*<string>[^<]*</string>'),
@@ -294,7 +295,7 @@ final class IosGenerator {
 
   Future<void> _wirePodsXcconfigs(String pbxprojPath) async {
     final projectDir = File(pbxprojPath).parent.parent.path; // ios/
-    final flutterDir = '$projectDir/Flutter';
+    final flutterDir = p.join(projectDir, 'Flutter');
 
     // 1. Create per-flavor Flutter xcconfig files that chain both Pods and Generated.
     //    FLUTTER_TARGET overrides the default lib/main.dart from Generated.xcconfig
@@ -307,7 +308,7 @@ final class IosGenerator {
       final configName = '$base-$flavor';
       final filename = '$configName.xcconfig';
       final entrypoint = flavorEntrypoints[flavor] ?? 'lib/main.dart';
-      final file = File('$flutterDir/$filename');
+      final file = File(p.join(flutterDir, filename));
       file.writeAsStringSync(
         '#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.$podsKey.xcconfig"\n'
         '#include "Generated.xcconfig"\n'
@@ -386,10 +387,10 @@ final class IosGenerator {
   /// warning about `Pods-Runner.profile.xcconfig` not being included.
   Future<void> _wireProfileXcconfig(String pbxprojPath) async {
     final projectDir = File(pbxprojPath).parent.parent.path; // ios/
-    final flutterDir = '$projectDir/Flutter';
+    final flutterDir = p.join(projectDir, 'Flutter');
 
     // Write Flutter/Profile.xcconfig.
-    File('$flutterDir/Profile.xcconfig').writeAsStringSync(
+    File(p.join(flutterDir, 'Profile.xcconfig')).writeAsStringSync(
       '#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"\n'
       '#include "Generated.xcconfig"\n',
     );
@@ -448,7 +449,7 @@ final class IosGenerator {
   // ── Scheme files ──────────────────────────────────────────────────────────
 
   Future<void> _writeSchemes(String schemesDir) async {
-    final runnerScheme = File('$schemesDir/Runner.xcscheme');
+    final runnerScheme = File(p.join(schemesDir, 'Runner.xcscheme'));
     if (!runnerScheme.existsSync()) return;
 
     final template = runnerScheme.readAsStringSync();
@@ -460,14 +461,14 @@ final class IosGenerator {
           .replaceAll('buildConfiguration = "Release"', 'buildConfiguration = "Release-$fn"')
           .replaceAll('buildConfiguration = "Profile"', 'buildConfiguration = "Profile-$fn"');
       // Scheme file name must match --flavor argument Flutter passes to xcodebuild.
-      File('$schemesDir/$fn.xcscheme').writeAsStringSync(scheme);
+      File(p.join(schemesDir, '$fn.xcscheme')).writeAsStringSync(scheme);
     }
   }
 
   // ── Push notification entitlements ───────────────────────────────────────
 
   Future<void> _writeEntitlements(ProjectConfig config) async {
-    final file = File('${config.projectPath}/ios/Runner/Runner.entitlements');
+    final file = File(p.join(config.projectPath, 'ios', 'Runner', 'Runner.entitlements'));
     file.writeAsStringSync('''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -519,7 +520,6 @@ final class IosGenerator {
     // Skip if already injected.
     if (content.contains('Copy Firebase GoogleService-Info.plist')) return;
 
-    const guid = 'FA0B1C2D3E4F5A6B7C8D9E0F';
     const phaseEntry =
         '\t\tFA0B1C2D3E4F5A6B7C8D9E0F /* Copy Firebase GoogleService-Info.plist */,\n';
 

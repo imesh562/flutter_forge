@@ -1,14 +1,15 @@
 import 'package:flutter_forge/src/models/project_config.dart';
 import 'package:flutter_forge/src/utils/file_utils.dart';
+import 'package:path/path.dart' as p;
 
 final class ThemeGenerator {
   Future<void> run(ProjectConfig config) async {
     final pkg = config.projectName;
-    final themeBase = '${config.projectPath}/lib/shared/theme';
-    final providersBase = '${config.projectPath}/lib/shared/providers';
-    final blocsBase = '${config.projectPath}/lib/shared/blocs';
+    final themeBase = p.join(config.projectPath, 'lib', 'shared', 'theme');
+    final providersBase = p.join(config.projectPath, 'lib', 'shared', 'providers');
+    final blocsBase = p.join(config.projectPath, 'lib', 'shared', 'blocs');
 
-    final sharedBase = '${config.projectPath}/lib/shared';
+    final sharedBase = p.join(config.projectPath, 'lib', 'shared');
 
     await Future.wait([
       _writeAppColorScheme(themeBase),
@@ -26,7 +27,7 @@ final class ThemeGenerator {
 
   Future<void> _writeAppColorScheme(String base) async {
     await FileUtils.writeFile(
-      '$base/app_color_scheme.dart',
+      p.join(base, 'app_color_scheme.dart'),
       '''
 import 'package:flutter/material.dart';
 
@@ -190,7 +191,7 @@ final class AppColorScheme extends ThemeExtension<AppColorScheme> {
 
   Future<void> _writeAppDimensions(String base) async {
     await FileUtils.writeFile(
-      '$base/app_dimensions.dart',
+      p.join(base, 'app_dimensions.dart'),
       '''
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -413,7 +414,7 @@ class AppDimensions {
 
   Future<void> _writeAppTheme(String base, String pkg) async {
     await FileUtils.writeFile(
-      '$base/app_theme.dart',
+      p.join(base, 'app_theme.dart'),
       '''
 import 'package:flutter/material.dart';
 
@@ -457,7 +458,7 @@ abstract final class AppTheme {
 
   Future<void> _writeThemeCubit(String base) async {
     await FileUtils.writeFile(
-      '$base/theme_cubit.dart',
+      p.join(base, 'theme_cubit.dart'),
       '''
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -501,7 +502,7 @@ final class ThemeCubit extends Cubit<ThemeMode> {
   ) async {
     // Re-export from core/notifications so callers can use either import path.
     await FileUtils.writeFile(
-      '$base/notification_provider.dart',
+      p.join(base, 'notification_provider.dart'),
       '''
 export 'package:$pkg/core/notifications/notification_provider.dart';
 ''',
@@ -509,18 +510,18 @@ export 'package:$pkg/core/notifications/notification_provider.dart';
   }
 
   Future<void> _writeFlavorsFiles(ProjectConfig config) async {
-    final base = '${config.projectPath}/lib/flavors';
+    final base = p.join(config.projectPath, 'lib', 'flavors');
 
     if (config.useFlavors) {
       await FileUtils.writeFile(
-        '$base/flavor.dart',
+        p.join(base, 'flavor.dart'),
         '''
 enum Flavor { dev, stg, preProd, prod }
 ''',
       );
 
       await FileUtils.writeFile(
-        '$base/flavor_config.dart',
+        p.join(base, 'flavor_config.dart'),
         '''
 import 'flavor.dart';
 
@@ -553,7 +554,7 @@ final class FlavorConfig {
     } else {
       // No flavor enum needed — single environment.
       await FileUtils.writeFile(
-        '$base/flavor_config.dart',
+        p.join(base, 'flavor_config.dart'),
         '''
 final class FlavorConfig {
   FlavorConfig({
@@ -577,7 +578,7 @@ final class FlavorConfig {
 
   Future<void> _writeExtensions(ProjectConfig config, String pkg) async {
     await FileUtils.writeFile(
-      '${config.projectPath}/lib/utils/extensions.dart',
+      p.join(config.projectPath, 'lib', 'utils', 'extensions.dart'),
       '''
 import 'package:flutter/material.dart';
 
@@ -608,7 +609,7 @@ extension StringX on String {
 
   Future<void> _writeBaseStates(String sharedBase, String pkg) async {
     await FileUtils.writeFile(
-      '$sharedBase/blocs/base_states.dart',
+      p.join(sharedBase, 'blocs', 'base_states.dart'),
       '''
 import 'package:$pkg/error/failures.dart';
 
@@ -636,7 +637,7 @@ mixin FailureState {
 
   Future<void> _writeBaseView(String sharedBase, String pkg) async {
     await FileUtils.writeFile(
-      '$sharedBase/widgets/base_view.dart',
+      p.join(sharedBase, 'widgets', 'base_view.dart'),
       '''
 import 'dart:async';
 import 'dart:ui';
@@ -698,7 +699,7 @@ import 'package:$pkg/shared/usecases/logout_usecase.dart';
 ///             enabled: submitEnabled,
 ///             onSubmit: (req) {
 ///               setState(() => submitEnabled = false);
-///               context.read<LoginBloc>().add(LoginStarted(req));
+///               bloc.add(LoginStarted(req));
 ///             },
 ///           ),
 ///         ],
@@ -708,9 +709,27 @@ import 'package:$pkg/shared/usecases/logout_usecase.dart';
 /// }
 /// ```
 mixin BaseViewMixin<B extends BlocBase<S>, S, W extends StatefulWidget> on State<W> {
+  /// The BLoC/Cubit instance for this page, resolved from the DI container.
+  ///
+  /// Use this field to dispatch events from button handlers:
+  /// ```dart
+  /// ElevatedButton(
+  ///   onPressed: () => bloc.add(LoginStarted(request)),
+  ///   child: const Text('Login'),
+  /// )
+  /// ```
+  /// Wrap your [build] output in [BlocProvider.value] to also make
+  /// [context.read<B>()] available in the subtree:
+  /// ```dart
+  /// Widget build(BuildContext context) => BlocProvider.value(
+  ///   value: bloc,
+  ///   child: Scaffold(...),
+  /// );
+  /// ```
+  late final B bloc = GetIt.instance<B>();
+
   bool _loadingShowing = false;
   StreamSubscription<S>? _stateSub;
-  B? _currentBloc;
 
   /// Override to react to BLoC/Cubit state changes.
   ///
@@ -719,19 +738,10 @@ mixin BaseViewMixin<B extends BlocBase<S>, S, W extends StatefulWidget> on State
   /// Use [setState] to update your page's fields.
   void onState(BuildContext context, S state) {}
 
-  /// Re-subscribes whenever the bloc instance provided above this widget
-  /// changes (e.g. during navigation, tab switches, or in tests).
-  /// This is the correct place to wire up BLoC listeners — [initState] fires
-  /// before [InheritedWidget] dependencies are resolved.
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final newBloc = context.read<B>();
-    if (_currentBloc != newBloc) {
-      _stateSub?.cancel();
-      _currentBloc = newBloc;
-      _stateSub = newBloc.stream.listen(_onState);
-    }
+  void initState() {
+    super.initState();
+    _stateSub = bloc.stream.listen(_onState);
   }
 
   @override

@@ -1,10 +1,11 @@
 import 'package:flutter_forge/src/models/project_config.dart';
 import 'package:flutter_forge/src/utils/file_utils.dart';
+import 'package:path/path.dart' as p;
 
 final class StorageGenerator {
   Future<void> run(ProjectConfig config) async {
     final pkg = config.projectName;
-    final base = '${config.projectPath}/lib/core/storage';
+    final base = p.join(config.projectPath, 'lib', 'core', 'storage');
 
     await Future.wait([
       _writePreferencesService(base, pkg),
@@ -15,7 +16,7 @@ final class StorageGenerator {
 
   Future<void> _writePreferencesService(String base, String pkg) async {
     await FileUtils.writeFile(
-      '$base/preferences_service.dart',
+      p.join(base, 'preferences_service.dart'),
       '''
 import 'package:injectable/injectable.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -61,7 +62,7 @@ final class PreferencesService {
 
   Future<void> _writeSecureStorageService(String base, String pkg) async {
     await FileUtils.writeFile(
-      '$base/secure_storage_service.dart',
+      p.join(base, 'secure_storage_service.dart'),
       '''
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:injectable/injectable.dart';
@@ -87,7 +88,7 @@ final class SecureStorageService {
 
   Future<void> _writeHiveService(String base, String pkg) async {
     await FileUtils.writeFile(
-      '$base/hive_service.dart',
+      p.join(base, 'hive_service.dart'),
       '''
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:injectable/injectable.dart';

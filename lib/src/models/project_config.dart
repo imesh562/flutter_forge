@@ -1,4 +1,5 @@
 import 'package:flutter_forge/src/models/flavor_config.dart';
+import 'package:path/path.dart' as p;
 
 final class ProjectConfig {
   const ProjectConfig({
@@ -33,7 +34,7 @@ final class ProjectConfig {
   /// Whether to scaffold multiple flavors (DEV / STG / PRE_PROD / PROD).
   final bool useFlavors;
 
-  String get projectPath => '$outputDirectory/$projectName';
+  String get projectPath => p.join(outputDirectory, projectName);
 
   /// True when at least one flavor has a non-empty Mixpanel token.
   bool get hasMixpanel =>

@@ -960,20 +960,16 @@ class $widgetName extends StatelessWidget {
       await _colorAdder.add(name: name, lightHex: lightHex, darkHex: darkHex);
       stdout.writeln('\n✔ Added "$name" to AppColorScheme.');
       stdout.writeln('  Access via: context.appColors.$name');
-    } on StateError catch (e) {
-      stdout.writeln('\n✖ ${e.message}');
-    } on ArgumentError catch (e) {
-      stdout.writeln('\n✖ ${e.message}');
+    } on Exception catch (e) {
+      stdout.writeln('\n✖ $e');
     }
   }
 
   Future<void> _runColorUpdateFlow() async {
     final name = _prompt('Color name to update');
     stdout.writeln('  Leave blank to keep the current value.');
-    final rawLight = _promptOptional('New light hex (e.g. #FFFFFF)');
-    final rawDark = _promptOptional('New dark hex (e.g. #1E1E1E)');
-    final lightHex = rawLight.isEmpty ? null : rawLight;
-    final darkHex = rawDark.isEmpty ? null : rawDark;
+    final lightHex = _promptOptional('New light hex (e.g. #FFFFFF)');
+    final darkHex = _promptOptional('New dark hex (e.g. #1E1E1E)');
     if (lightHex == null && darkHex == null) {
       stdout.writeln('  Nothing to update.');
       return;
@@ -982,10 +978,8 @@ class $widgetName extends StatelessWidget {
       await _colorAdder.update(name: name, lightHex: lightHex, darkHex: darkHex);
       if (lightHex != null) stdout.writeln('\n✔ Light "$name" → $lightHex');
       if (darkHex != null) stdout.writeln('✔ Dark  "$name" → $darkHex');
-    } on StateError catch (e) {
-      stdout.writeln('\n✖ ${e.message}');
-    } on ArgumentError catch (e) {
-      stdout.writeln('\n✖ ${e.message}');
+    } on Exception catch (e) {
+      stdout.writeln('\n✖ $e');
     }
   }
 
@@ -994,8 +988,8 @@ class $widgetName extends StatelessWidget {
     try {
       await _colorAdder.remove(name);
       stdout.writeln('\n✔ Removed "$name" from AppColorScheme.');
-    } on StateError catch (e) {
-      stdout.writeln('\n✖ ${e.message}');
+    } on Exception catch (e) {
+      stdout.writeln('\n✖ $e');
     }
   }
 
@@ -1006,8 +1000,8 @@ class $widgetName extends StatelessWidget {
       for (final t in tokens) {
         stdout.writeln('    • $t');
       }
-    } on StateError catch (e) {
-      stdout.writeln('\n✖ ${e.message}');
+    } on Exception catch (e) {
+      stdout.writeln('\n✖ $e');
     }
   }
 
@@ -1174,10 +1168,10 @@ class _${pageName}State extends State<$pageName>
     }
   }
 
-  /// Like [_prompt] but returns empty string when the user presses Enter.
-  String _promptOptional(String label) {
+  String? _promptOptional(String label) {
     stdout.write('  $label (press Enter to skip): ');
-    return stdin.readLineSync()?.trim() ?? '';
+    final raw = stdin.readLineSync()?.trim() ?? '';
+    return raw.isEmpty ? null : raw;
   }
 
   String _prompt(String label, {String? defaultValue}) {

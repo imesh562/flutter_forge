@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter_forge/src/utils/file_utils.dart';
+import 'package:flutter_forge/src/utils/string_utils.dart';
+import 'package:path/path.dart' as p;
 
 /// Manages `codegen_registry.json` — the source of truth for all generated
 /// features, BLoCs, Cubits, and endpoints.
@@ -9,7 +11,7 @@ final class RegistryManager {
 
   final String _projectPath;
 
-  String get _registryPath => '$_projectPath/codegen_registry.json';
+  String get _registryPath => p.join(_projectPath, 'codegen_registry.json');
 
   Future<Map<String, dynamic>> read() async => FileUtils.readJson(_registryPath);
 
@@ -201,17 +203,17 @@ final class RegistryManager {
 
     for (final featureEntry in features.entries) {
       final feature = featureEntry.key;
-      final featureSnake = feature.replaceAll(RegExp(r'(?<=[a-z])[A-Z]'), r'_$0').toLowerCase();
+      final featureSnake = StringUtils.toSnakeCase(feature);
 
       final f = (featureEntry.value as Map<String, dynamic>? ?? {}).cast<String, dynamic>();
 
       // Check BLoC files.
       final blocs = List<String>.from(f['blocs'] as List<dynamic>? ?? []);
       for (final bloc in blocs) {
-        final snake = _toSnake(bloc);
-        final dir = '$_projectPath/lib/features/$feature/presentation';
+        final snake = StringUtils.toSnakeCase(bloc);
+        final dir = p.join(_projectPath, 'lib', 'features', feature, 'presentation');
         for (final file in ['${snake}_bloc.dart', '${snake}_event.dart', '${snake}_state.dart']) {
-          if (!File('$dir/$file').existsSync()) {
+          if (!File(p.join(dir, file)).existsSync()) {
             warnings.add('⚠ Registry lists BLoC "$bloc" for feature "$feature" '
                 'but $file is missing from disk.');
           }
@@ -221,10 +223,10 @@ final class RegistryManager {
       // Check Cubit files.
       final cubits = List<String>.from(f['cubits'] as List<dynamic>? ?? []);
       for (final cubit in cubits) {
-        final snake = _toSnake(cubit);
-        final dir = '$_projectPath/lib/features/$feature/presentation';
+        final snake = StringUtils.toSnakeCase(cubit);
+        final dir = p.join(_projectPath, 'lib', 'features', feature, 'presentation');
         for (final file in ['${snake}_cubit.dart', '${snake}_state.dart']) {
-          if (!File('$dir/$file').existsSync()) {
+          if (!File(p.join(dir, file)).existsSync()) {
             warnings.add('⚠ Registry lists Cubit "$cubit" for feature "$feature" '
                 'but $file is missing from disk.');
           }
@@ -232,10 +234,24 @@ final class RegistryManager {
       }
 
       // Check repository files.
-      final repoAbstract =
-          '$_projectPath/lib/features/$feature/domain/repositories/${featureSnake}_repository.dart';
-      final repoImpl =
-          '$_projectPath/lib/features/$feature/data/repositories/${featureSnake}_repository_impl.dart';
+      final repoAbstract = p.join(
+        _projectPath,
+        'lib',
+        'features',
+        feature,
+        'domain',
+        'repositories',
+        '${featureSnake}_repository.dart',
+      );
+      final repoImpl = p.join(
+        _projectPath,
+        'lib',
+        'features',
+        feature,
+        'data',
+        'repositories',
+        '${featureSnake}_repository_impl.dart',
+      );
       if (blocs.isNotEmpty || cubits.isNotEmpty) {
         if (!File(repoAbstract).existsSync()) {
           warnings.add('⚠ Feature "$feature" has BLoCs/Cubits but '
@@ -251,11 +267,6 @@ final class RegistryManager {
     return warnings;
   }
 
-  /// Naive PascalCase / camelCase → snake_case helper used only for validation.
-  String _toSnake(String name) => name
-      .replaceAllMapped(RegExp(r'(?<=[a-z])[A-Z]'), (m) => '_${m.group(0)!}')
-      .toLowerCase();
-
   static bool registryExists(String projectPath) =>
-      File('$projectPath/codegen_registry.json').existsSync();
+      File(p.join(projectPath, 'codegen_registry.json')).existsSync();
 }

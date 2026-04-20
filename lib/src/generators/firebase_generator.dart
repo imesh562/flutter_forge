@@ -1,10 +1,11 @@
 import 'package:flutter_forge/src/models/flavor_config.dart';
 import 'package:flutter_forge/src/models/project_config.dart';
 import 'package:flutter_forge/src/utils/file_utils.dart';
+import 'package:path/path.dart' as p;
 
 final class FirebaseGenerator {
   Future<void> run(ProjectConfig config) async {
-    final base = '${config.projectPath}/lib/core/notifications';
+    final base = p.join(config.projectPath, 'lib', 'core', 'notifications');
 
     await Future.wait([
       _writeLocalPushService(base, config.projectName),
@@ -16,7 +17,7 @@ final class FirebaseGenerator {
 
   Future<void> _writeLocalPushService(String base, String pkg) async {
     await FileUtils.writeFile(
-      '$base/local_push_service.dart',
+      p.join(base, 'local_push_service.dart'),
       '''
 import 'dart:convert';
 import 'dart:io';
@@ -140,7 +141,7 @@ Future<void> _backgroundHandler(RemoteMessage message) async {
 
   Future<void> _writeNotificationProvider(String base) async {
     await FileUtils.writeFile(
-      '$base/notification_provider.dart',
+      p.join(base, 'notification_provider.dart'),
       '''
 import 'package:flutter/foundation.dart';
 
@@ -172,10 +173,11 @@ final class NotificationProvider extends ChangeNotifier {
   Future<void> _writeAndroidPlaceholders(ProjectConfig config) async {
     if (config.useFlavors) {
       for (final flavor in Flavor.values) {
-        final dir =
-            '${config.projectPath}/android/app/src/${flavor.gradleName}';
+        final dir = p.join(
+          config.projectPath, 'android', 'app', 'src', flavor.gradleName,
+        );
         await FileUtils.writeFile(
-          '$dir/README.md',
+          p.join(dir, 'README.md'),
           '# ${flavor.label} Firebase\n\n'
           'Place your `google-services.json` for the **${flavor.label}** '
           'environment here.\n\n'
@@ -184,7 +186,7 @@ final class NotificationProvider extends ChangeNotifier {
       }
     } else {
       await FileUtils.writeFile(
-        '${config.projectPath}/android/app/README.md',
+        p.join(config.projectPath, 'android', 'app', 'README.md'),
         '# Firebase\n\n'
         'Place your `google-services.json` here.\n\n'
         'Download it from the Firebase console.\n',
@@ -195,10 +197,11 @@ final class NotificationProvider extends ChangeNotifier {
   Future<void> _writeIosPlaceholders(ProjectConfig config) async {
     if (config.useFlavors) {
       for (final flavor in Flavor.values) {
-        final dir =
-            '${config.projectPath}/ios/config/${flavor.gradleName}';
+        final dir = p.join(
+          config.projectPath, 'ios', 'config', flavor.gradleName,
+        );
         await FileUtils.writeFile(
-          '$dir/README.md',
+          p.join(dir, 'README.md'),
           '# ${flavor.label} Firebase (iOS)\n\n'
           'Place your `GoogleService-Info.plist` for the **${flavor.label}** '
           'environment here.\n\n'
@@ -207,7 +210,7 @@ final class NotificationProvider extends ChangeNotifier {
       }
     } else {
       await FileUtils.writeFile(
-        '${config.projectPath}/ios/README.md',
+        p.join(config.projectPath, 'ios', 'README.md'),
         '# Firebase (iOS)\n\n'
         'Place your `GoogleService-Info.plist` here.\n\n'
         'Download it from the Firebase console.\n',

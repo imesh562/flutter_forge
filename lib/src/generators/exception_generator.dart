@@ -1,5 +1,6 @@
 import 'package:flutter_forge/src/models/project_config.dart';
 import 'package:flutter_forge/src/utils/file_utils.dart';
+import 'package:path/path.dart' as p;
 
 final class ExceptionGenerator {
   Future<void> run(ProjectConfig config) async {
@@ -10,7 +11,7 @@ final class ExceptionGenerator {
 
   Future<void> _writeExceptions(ProjectConfig config, String pkg) async {
     await FileUtils.writeFile(
-      '${config.projectPath}/lib/error/exceptions.dart',
+      p.join(config.projectPath, 'lib', 'error', 'exceptions.dart'),
       r'''
 import 'package:dio/dio.dart' as dio;
 
@@ -65,7 +66,7 @@ AppException mapHttpError(dio.DioException error) {
 
   Future<void> _writeFailures(ProjectConfig config, String pkg) async {
     await FileUtils.writeFile(
-      '${config.projectPath}/lib/error/failures.dart',
+      p.join(config.projectPath, 'lib', 'error', 'failures.dart'),
       '''
 import 'package:equatable/equatable.dart';
 
