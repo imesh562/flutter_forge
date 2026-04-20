@@ -1,10 +1,11 @@
 import 'package:flutter_forge/src/models/project_config.dart';
 import 'package:flutter_forge/src/utils/file_utils.dart';
+import 'package:path/path.dart' as p;
 
 final class NetworkingGenerator {
   Future<void> run(ProjectConfig config) async {
     final pkg = config.projectName;
-    final base = '${config.projectPath}/lib/core/network';
+    final base = p.join(config.projectPath, 'lib', 'core', 'network');
 
     await Future.wait([
       _writeNetworkConfig(base, pkg),
@@ -16,7 +17,7 @@ final class NetworkingGenerator {
 
   Future<void> _writeNetworkConfig(String base, String pkg) async {
     await FileUtils.writeFile(
-      '$base/network_config.dart',
+      p.join(base, 'network_config.dart'),
       '''
 abstract final class NetworkConfig {
   static const connectTimeout = Duration(seconds: 30);
@@ -29,7 +30,7 @@ abstract final class NetworkConfig {
 
   Future<void> _writeApiHelper(String base, String pkg) async {
     await FileUtils.writeFile(
-      '$base/api_helper.dart',
+      p.join(base, 'api_helper.dart'),
       '''
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -127,7 +128,7 @@ class ApiHelper {
 
   Future<void> _writeMockApiHelper(String base, String pkg) async {
     await FileUtils.writeFile(
-      '$base/mock_api_helper.dart',
+      p.join(base, 'mock_api_helper.dart'),
       '''
 import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
@@ -189,7 +190,7 @@ final class MockApiHelper extends ApiHelper {
 
   Future<void> _writeWebhookHelper(String base, String pkg) async {
     await FileUtils.writeFile(
-      '$base/webhook_helper.dart',
+      p.join(base, 'webhook_helper.dart'),
       '''
 import 'dart:async';
 import 'dart:convert';

@@ -1,6 +1,7 @@
 import 'package:flutter_forge/src/models/flavor_config.dart';
 import 'package:flutter_forge/src/models/project_config.dart';
 import 'package:flutter_forge/src/utils/file_utils.dart';
+import 'package:path/path.dart' as p;
 
 /// Patches Android build files for product flavors and/or google-services.
 final class AndroidGenerator {
@@ -15,8 +16,9 @@ final class AndroidGenerator {
   }
 
   Future<void> _patchAndroidManifest(ProjectConfig config) async {
-    final path =
-        '${config.projectPath}/android/app/src/main/AndroidManifest.xml';
+    final path = p.join(
+      config.projectPath, 'android', 'app', 'src', 'main', 'AndroidManifest.xml',
+    );
     await FileUtils.patchFile(path, (content) {
       var result = content.replaceFirst(
         RegExp(r'android:label="[^"]*"'),
@@ -39,11 +41,12 @@ final class AndroidGenerator {
     for (final flavor in Flavor.values) {
       final isProd = flavor == Flavor.prod;
       final label = isProd ? appName : '$appName ${flavor.label}';
-      final dir =
-          '${config.projectPath}/android/app/src/${flavor.gradleName}/res/values';
+      final dir = p.join(
+        config.projectPath, 'android', 'app', 'src', flavor.gradleName, 'res', 'values',
+      );
       await FileUtils.ensureDir(dir);
       await FileUtils.writeFile(
-        '$dir/strings.xml',
+        p.join(dir, 'strings.xml'),
         '<?xml version="1.0" encoding="utf-8"?>\n'
             '<resources>\n'
             '    <string name="app_name">$label</string>\n'
@@ -53,7 +56,7 @@ final class AndroidGenerator {
   }
 
   Future<void> _patchAppBuildGradle(ProjectConfig config) async {
-    final path = '${config.projectPath}/android/app/build.gradle.kts';
+    final path = p.join(config.projectPath, 'android', 'app', 'build.gradle.kts');
 
     await FileUtils.patchFile(path, (content) {
       var result = content;
@@ -113,7 +116,7 @@ final class AndroidGenerator {
   }
 
   Future<void> _patchProjectBuildGradle(ProjectConfig config) async {
-    final path = '${config.projectPath}/android/build.gradle.kts';
+    final path = p.join(config.projectPath, 'android', 'build.gradle.kts');
 
     await FileUtils.patchFile(path, (content) {
       if (!content.contains('google-services')) {
@@ -126,7 +129,7 @@ final class AndroidGenerator {
   }
 
   Future<void> _patchSettingsGradle(ProjectConfig config) async {
-    final path = '${config.projectPath}/android/settings.gradle.kts';
+    final path = p.join(config.projectPath, 'android', 'settings.gradle.kts');
 
     await FileUtils.patchFile(path, (content) {
       var result = content;
@@ -174,10 +177,4 @@ final class AndroidGenerator {
     return buf.toString();
   }
 
-  String _insertBeforeLastBrace(String content, String insertion) {
-    final lastBrace = content.lastIndexOf('}');
-    if (lastBrace == -1) return '$content\n$insertion';
-    return '${content.substring(0, lastBrace)}\n$insertion\n'
-        '${content.substring(lastBrace)}';
-  }
 }

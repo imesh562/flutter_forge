@@ -1,10 +1,11 @@
 import 'package:flutter_forge/src/models/project_config.dart';
 import 'package:flutter_forge/src/utils/file_utils.dart';
+import 'package:path/path.dart' as p;
 
 final class NavigationGenerator {
   Future<void> run(ProjectConfig config) async {
     final pkg = config.projectName;
-    final base = '${config.projectPath}/lib';
+    final base = p.join(config.projectPath, 'lib');
 
     await Future.wait([
       _writeAppRouter(base, pkg),
@@ -16,7 +17,7 @@ final class NavigationGenerator {
 
   Future<void> _writeAppRouter(String base, String pkg) async {
     await FileUtils.writeFile(
-      '$base/navigation/app_router.dart',
+      p.join(base, 'navigation', 'app_router.dart'),
       '''
 import 'package:go_router/go_router.dart';
 
@@ -63,7 +64,7 @@ abstract final class AppRoutes {
 
   Future<void> _writeLogoutUseCase(String base, String pkg) async {
     await FileUtils.writeFile(
-      '$base/shared/usecases/logout_usecase.dart',
+      p.join(base, 'shared', 'usecases', 'logout_usecase.dart'),
       '''
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:injectable/injectable.dart';
@@ -94,7 +95,7 @@ class LogoutUseCase {
 
   Future<void> _writeRouteGuards(String base, String pkg) async {
     await FileUtils.writeFile(
-      '$base/navigation/route_guards.dart',
+      p.join(base, 'navigation', 'route_guards.dart'),
       '''
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
@@ -129,7 +130,7 @@ abstract final class RouteGuards {
   Future<void> _writeStubPages(String base, String pkg) async {
     // SplashPage — auth feature, navigates to /login after a short delay.
     await FileUtils.writeFile(
-      '$base/features/auth/presentation/pages/splash_page.dart',
+      p.join(base, 'features', 'auth', 'presentation', 'pages', 'splash_page.dart'),
       '''
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -164,8 +165,11 @@ class _SplashPageState extends State<SplashPage>
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: FlutterLogo(size: 80)),
+    return BlocProvider.value(
+      value: bloc,
+      child: const Scaffold(
+        body: Center(child: FlutterLogo(size: 80)),
+      ),
     );
   }
 }
@@ -174,7 +178,7 @@ class _SplashPageState extends State<SplashPage>
 
     // LoginPage — onboarding feature stub.
     await FileUtils.writeFile(
-      '$base/features/onboarding/presentation/pages/login_page.dart',
+      p.join(base, 'features', 'onboarding', 'presentation', 'pages', 'login_page.dart'),
       '''
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -196,8 +200,11 @@ class _LoginPageState extends State<LoginPage>
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('LoginPage')),
+    return BlocProvider.value(
+      value: bloc,
+      child: const Scaffold(
+        body: Center(child: Text('LoginPage')),
+      ),
     );
   }
 }
@@ -206,7 +213,7 @@ class _LoginPageState extends State<LoginPage>
 
     // ForceUpdateView — shown by BaseView when a ForceUpdateFailure is received.
     await FileUtils.writeFile(
-      '$base/shared/widgets/force_update_view.dart',
+      p.join(base, 'shared', 'widgets', 'force_update_view.dart'),
       '''
 import 'package:flutter/material.dart';
 
@@ -248,7 +255,7 @@ class ForceUpdateView extends StatelessWidget {
 
     // MaintenanceView — shown by BaseView when a MaintenanceFailure is received.
     await FileUtils.writeFile(
-      '$base/shared/widgets/maintenance_view.dart',
+      p.join(base, 'shared', 'widgets', 'maintenance_view.dart'),
       '''
 import 'package:flutter/material.dart';
 

@@ -16,6 +16,11 @@ import 'package:flutter_forge/src/color_generator/color_adder.dart';
 Future<void> main(List<String> args) async {
   final console = Console();
 
+  if (args.isNotEmpty && (args.first == '--version' || args.first == '-v')) {
+    stdout.writeln('1.0.0');
+    return;
+  }
+
   if (args.isEmpty || args.first == '--help' || args.first == '-h') {
     _printHelp();
     return;
@@ -81,11 +86,8 @@ Future<void> _runAdd(
     console.writeLine(
       '  Access it in widgets via: context.appColors.$name',
     );
-  } on StateError catch (e) {
-    stderr.writeln('\n  ✖ ${e.message}');
-    exit(1);
-  } on ArgumentError catch (e) {
-    stderr.writeln('\n  ✖ ${e.message}');
+  } on Exception catch (e) {
+    stderr.writeln('\n  ✖ $e');
     exit(1);
   }
 }
@@ -131,11 +133,8 @@ Future<void> _runUpdate(
     );
     console.writeLine();
 
-    final rawLight = _promptOptional(console, '  New light hex', example: '#FFFFFF');
-    final rawDark = _promptOptional(console, '  New dark hex', example: '#1E1E1E');
-
-    lightHex = rawLight.isEmpty ? null : rawLight;
-    darkHex = rawDark.isEmpty ? null : rawDark;
+    lightHex = _promptOptional(console, '  New light hex', example: '#FFFFFF');
+    darkHex = _promptOptional(console, '  New dark hex', example: '#1E1E1E');
 
     if (lightHex == null && darkHex == null) {
       console.writeLine('  Nothing to update.');
@@ -149,11 +148,8 @@ Future<void> _runUpdate(
     await adder.update(name: name, lightHex: lightHex, darkHex: darkHex);
     if (lightHex != null) console.writeLine('  ✔ Light "$name" → $lightHex');
     if (darkHex != null) console.writeLine('  ✔ Dark  "$name" → $darkHex');
-  } on StateError catch (e) {
-    stderr.writeln('\n  ✖ ${e.message}');
-    exit(1);
-  } on ArgumentError catch (e) {
-    stderr.writeln('\n  ✖ ${e.message}');
+  } on Exception catch (e) {
+    stderr.writeln('\n  ✖ $e');
     exit(1);
   }
 }
@@ -172,8 +168,8 @@ Future<void> _runRemove(
   try {
     await adder.remove(name);
     console.writeLine('  ✔ Removed "$name" from AppColorScheme.');
-  } on StateError catch (e) {
-    stderr.writeln('\n  ✖ ${e.message}');
+  } on Exception catch (e) {
+    stderr.writeln('\n  ✖ $e');
     exit(1);
   }
 }
@@ -189,8 +185,8 @@ Future<void> _runList(Console console, ColorAdder adder) async {
       console.writeLine('    • $t');
     }
     console.writeLine();
-  } on StateError catch (e) {
-    stderr.writeln('\n  ✖ ${e.message}');
+  } on Exception catch (e) {
+    stderr.writeln('\n  ✖ $e');
     exit(1);
   }
 }
@@ -208,11 +204,12 @@ String _prompt(Console console, String label, {String? example}) {
   return value;
 }
 
-/// Like [_prompt] but returns empty string when the user presses Enter.
-String _promptOptional(Console console, String label, {String? example}) {
+/// Like [_prompt] but returns null when the user presses Enter.
+String? _promptOptional(Console console, String label, {String? example}) {
   final hint = example != null ? ' ($example)' : '';
   console.write('  $label$hint: ');
-  return console.readLine()?.trim() ?? '';
+  final value = console.readLine()?.trim() ?? '';
+  return value.isEmpty ? null : value;
 }
 
 void _printHelp() {

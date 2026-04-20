@@ -3,9 +3,15 @@ import 'dart:io';
 import 'package:flutter_forge/src/feature_generator/feature_wizard.dart';
 import 'package:flutter_forge/src/feature_generator/registry_manager.dart';
 import 'package:flutter_forge/src/utils/process_utils.dart';
+import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 Future<void> main(List<String> args) async {
+  if (args.contains('--version') || args.contains('-v')) {
+    stdout.writeln('1.0.0');
+    return;
+  }
+
   if (args.contains('--help') || args.contains('-h')) {
     stdout.writeln('''
 flutter_forge_generate — Generate code inside a flutter_forge project
@@ -47,10 +53,25 @@ Examples:
     exit(1);
   }
 
-  final pubspec = File('$projectPath/pubspec.yaml');
-  final pkg = _extractPackageName(await pubspec.readAsString());
+  final pubspecFile = File(p.join(projectPath, 'pubspec.yaml'));
+  if (!pubspecFile.existsSync()) {
+    stderr.writeln(
+      '✖ pubspec.yaml not found in: $projectPath\n'
+      '  Make sure you are running this from a flutter_forge project root.',
+    );
+    exit(1);
+  }
+  final pkg = _extractPackageName(await pubspecFile.readAsString());
 
-  await FeatureWizard(projectPath, pkg).run();
+  try {
+    await FeatureWizard(projectPath, pkg).run();
+  } on Exception catch (e) {
+    stderr.writeln('\n✖ $e');
+    exit(1);
+  } catch (e) {
+    stderr.writeln('\n✖ Unexpected error: $e');
+    exit(1);
+  }
 
   stdout.writeln('\n── Formatting generated code ────────────────────────────');
   await ProcessUtils.run(

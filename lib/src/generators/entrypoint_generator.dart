@@ -1,6 +1,7 @@
 import 'package:flutter_forge/src/models/flavor_config.dart';
 import 'package:flutter_forge/src/models/project_config.dart';
 import 'package:flutter_forge/src/utils/file_utils.dart';
+import 'package:path/path.dart' as p;
 
 /// Generates main.dart (flavor router) and the flavor-specific entrypoints.
 final class EntrypointGenerator {
@@ -19,7 +20,7 @@ final class EntrypointGenerator {
 
   Future<void> _writeMainRouter(ProjectConfig config) async {
     await FileUtils.writeFile(
-      '${config.projectPath}/lib/main.dart',
+      p.join(config.projectPath, 'lib', 'main.dart'),
       '''
 // This file is intentionally minimal — run a flavor-specific entrypoint.
 // Use: flutter run --flavor dev --target lib/main_dev.dart
@@ -120,7 +121,7 @@ import 'package:$pkg/core/di/injection.dart';''';
       ),''';
 
     await FileUtils.writeFile(
-      '${config.projectPath}/lib/$fileName.dart',
+      p.join(config.projectPath, 'lib', '$fileName.dart'),
       '''
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -222,7 +223,7 @@ import 'package:$pkg/core/di/injection.dart';''';
         : '';
 
     await FileUtils.writeFile(
-      '${config.projectPath}/lib/main.dart',
+      p.join(config.projectPath, 'lib', 'main.dart'),
       '''
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

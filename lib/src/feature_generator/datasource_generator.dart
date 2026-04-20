@@ -73,13 +73,15 @@ final class DatasourceGenerator {
     await FileUtils.patchFile(filePath, (content) {
       _assertImportable(content, requestSnake, responseSnake);
 
-      // Insert import lines if not already present.
+      // Insert import lines before the @lazySingleton annotation so that
+      // the annotation stays directly attached to the class declaration.
       var updated = content;
       if (!updated.contains("'../models/$requestSnake.dart'")) {
         updated = updated.replaceFirst(
-          '\nclass',
-          "\nimport '../models/$requestSnake.dart';"
-              "\nimport '../models/$responseSnake.dart';\n\nclass",
+          '\n@lazySingleton\nclass',
+          "\nimport '../models/$requestSnake.dart';\n"
+              "import '../models/$responseSnake.dart';\n"
+              '\n@lazySingleton\nclass',
         );
       }
 

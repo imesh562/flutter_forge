@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+
 /// Adds a new semantic color token to an existing project's [AppColorScheme].
 ///
 /// The generated [AppColorScheme] file contains `// forge:<section>` sentinel
@@ -26,9 +28,9 @@ final class ColorAdder {
     required String lightHex,
     required String darkHex,
   }) async {
-    final file = File('$projectPath/$_schemeRelPath');
+    final file = File(p.join(projectPath, _schemeRelPath));
     if (!file.existsSync()) {
-      throw StateError(
+      throw Exception(
         'app_color_scheme.dart not found.\n'
         'Expected: ${file.path}\n'
         'Make sure you are running this from a flutter_forge project root.',
@@ -42,7 +44,7 @@ final class ColorAdder {
     var content = await file.readAsString();
 
     if (_alreadyContains(content, name)) {
-      throw StateError("Color '$name' already exists in AppColorScheme.");
+      throw Exception("Color '$name' already exists in AppColorScheme.");
     }
 
     content = _insert(content, '// forge:constructor',
@@ -77,22 +79,22 @@ final class ColorAdder {
     String? lightHex,
     String? darkHex,
   }) async {
-    final file = File('$projectPath/$_schemeRelPath');
+    final file = File(p.join(projectPath, _schemeRelPath));
     if (!file.existsSync()) {
-      throw StateError('app_color_scheme.dart not found at ${file.path}');
+      throw Exception('app_color_scheme.dart not found at ${file.path}');
     }
 
     var content = await file.readAsString();
 
     if (!_alreadyContains(content, name)) {
-      throw StateError(
+      throw Exception(
         "Color '$name' not found in AppColorScheme. "
         "Run 'flutter_forge_color list' to see available tokens.",
       );
     }
 
     if (lightHex == null && darkHex == null) {
-      throw ArgumentError('Provide at least one of --light or --dark.');
+      throw FormatException('Provide at least one of --light or --dark.');
     }
 
     final tokenPattern = RegExp(
@@ -104,7 +106,7 @@ final class ColorAdder {
       // Only replace inside the light block (before the forge:light sentinel).
       final sentinel = '// forge:light';
       final splitAt = content.indexOf(sentinel);
-      if (splitAt == -1) throw StateError('// forge:light sentinel not found.');
+      if (splitAt == -1) throw Exception('// forge:light sentinel not found.');
       final head = content.substring(0, splitAt);
       final tail = content.substring(splitAt);
       final updated = head.replaceFirst(
@@ -112,7 +114,7 @@ final class ColorAdder {
         '    $name: Color(0x$light),',
       );
       if (updated == head) {
-        throw StateError("Token '$name' not found in the light block.");
+        throw Exception("Token '$name' not found in the light block.");
       }
       content = updated + tail;
     }
@@ -124,7 +126,7 @@ final class ColorAdder {
       final sentinel = '// forge:dark';
       final splitAt = content.indexOf(sentinel);
       if (darkStart == -1 || splitAt == -1) {
-        throw StateError('// forge:dark sentinel not found.');
+        throw Exception('// forge:dark sentinel not found.');
       }
       final head = content.substring(0, darkStart);
       final mid = content.substring(darkStart, splitAt);
@@ -134,7 +136,7 @@ final class ColorAdder {
         '    $name: Color(0x$dark),',
       );
       if (updated == mid) {
-        throw StateError("Token '$name' not found in the dark block.");
+        throw Exception("Token '$name' not found in the dark block.");
       }
       content = head + updated + tail;
     }
@@ -143,40 +145,49 @@ final class ColorAdder {
   }
 
   Future<void> remove(String name) async {
-    final file = File('$projectPath/$_schemeRelPath');
+    final file = File(p.join(projectPath, _schemeRelPath));
     if (!file.existsSync()) {
-      throw StateError('app_color_scheme.dart not found at ${file.path}');
+      throw Exception('app_color_scheme.dart not found at ${file.path}');
     }
 
     var content = await file.readAsString();
 
     if (!_alreadyContains(content, name)) {
-      throw StateError("Color '$name' not found in AppColorScheme.");
+      throw Exception("Color '$name' not found in AppColorScheme.");
     }
 
     // Remove each line that references this token (field, constructor,
     // light/dark values, copyWith param, copyWith body, lerp).
+    //
+    // The color-value pattern (`$n: Color(0x...)`) matches in BOTH the light
+    // and dark blocks, so replaceAll is used there; all other patterns appear
+    // exactly once and use replaceFirst.
     final n = RegExp.escape(name);
-    final patterns = [
+    final singlePatterns = [
       RegExp('    required this\\.$n,\\n'),
       RegExp('  final Color $n;\\n'),
-      RegExp('    $n: Color\\(0x[0-9A-Fa-f]{8}\\),\\n'),
       RegExp('    Color\\? $n,\\n'),
       RegExp('        $n: $n \\?\\? this\\.$n,\\n'),
       RegExp('      $n: Color\\.lerp\\($n, other\\.$n, t\\)!,\\n'),
     ];
 
-    for (final pattern in patterns) {
+    for (final pattern in singlePatterns) {
       content = content.replaceFirst(pattern, '');
     }
+
+    // Appears in both the light and dark blocks.
+    content = content.replaceAll(
+      RegExp('    $n: Color\\(0x[0-9A-Fa-f]{8}\\),\\n'),
+      '',
+    );
 
     await file.writeAsString(content);
   }
 
   Future<List<String>> list() async {
-    final file = File('$projectPath/$_schemeRelPath');
+    final file = File(p.join(projectPath, _schemeRelPath));
     if (!file.existsSync()) {
-      throw StateError('app_color_scheme.dart not found at ${file.path}');
+      throw Exception('app_color_scheme.dart not found at ${file.path}');
     }
 
     final content = await file.readAsString();
@@ -187,14 +198,19 @@ final class ColorAdder {
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   String _insert(String content, String sentinel, String insertion) {
-    if (!content.contains(sentinel)) {
-      throw StateError(
+    // Match the full line (including leading whitespace) so the sentinel is
+    // re-inserted at its original indentation and inserted lines carry only
+    // their own intrinsic indentation — not the sentinel's indent as well.
+    final match =
+        RegExp('[ \t]*${RegExp.escape(sentinel)}').firstMatch(content);
+    if (match == null) {
+      throw Exception(
         'Sentinel "$sentinel" not found in app_color_scheme.dart.\n'
         'The file may have been manually edited. Re-add the sentinel comment '
         'to resume automated color management.',
       );
     }
-    return content.replaceFirst(sentinel, '$insertion$sentinel');
+    return content.replaceFirst(match.group(0)!, '$insertion${match.group(0)!}');
   }
 
   bool _alreadyContains(String content, String name) =>
@@ -217,23 +233,23 @@ final class ColorAdder {
       case 8:
         break; // already AARRGGBB
       default:
-        throw ArgumentError(
+        throw FormatException(
           'Invalid hex color "$raw". '
           'Expected #RGB, #RRGGBB, or #AARRGGBB.',
         );
     }
 
     if (!RegExp(r'^[0-9A-F]{8}$').hasMatch(hex)) {
-      throw ArgumentError('Hex color "$raw" contains invalid characters.');
+      throw FormatException('Hex color "$raw" contains invalid characters.');
     }
 
     return hex;
   }
 
   void _validateName(String name) {
-    if (name.isEmpty) throw ArgumentError('Color name cannot be empty.');
+    if (name.isEmpty) throw FormatException('Color name cannot be empty.');
     if (!RegExp(r'^[a-z][a-zA-Z0-9]*$').hasMatch(name)) {
-      throw ArgumentError(
+      throw FormatException(
         'Color name "$name" must be camelCase starting with a lowercase letter.',
       );
     }

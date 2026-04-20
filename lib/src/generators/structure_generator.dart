@@ -1,47 +1,48 @@
 import 'package:flutter_forge/src/models/project_config.dart';
 import 'package:flutter_forge/src/utils/file_utils.dart';
+import 'package:path/path.dart' as p;
 
 /// Creates the full Clean Architecture directory tree with .gitkeep files.
 final class StructureGenerator {
   Future<void> run(ProjectConfig config) async {
     final root = config.projectPath;
-    final lib = '$root/lib';
+    final lib = p.join(root, 'lib');
 
     final dirs = [
       // Core
-      '$lib/core/network',
-      '$lib/core/storage',
-      '$lib/core/analytics',
-      '$lib/core/notifications',
-      '$lib/core/di',
+      p.join(lib, 'core', 'network'),
+      p.join(lib, 'core', 'storage'),
+      p.join(lib, 'core', 'analytics'),
+      p.join(lib, 'core', 'notifications'),
+      p.join(lib, 'core', 'di'),
       // Flavors
-      '$lib/flavors',
+      p.join(lib, 'flavors'),
       // Features
       for (final feature in ['auth', 'onboarding']) ...[
-        '$lib/features/$feature/presentation/pages',
-        '$lib/features/$feature/presentation/widgets',
-        '$lib/features/$feature/domain/entities',
-        '$lib/features/$feature/domain/repositories',
-        '$lib/features/$feature/domain/usecases',
-        '$lib/features/$feature/data/models',
-        '$lib/features/$feature/data/datasources',
-        '$lib/features/$feature/data/repositories',
+        p.join(lib, 'features', feature, 'presentation', 'pages'),
+        p.join(lib, 'features', feature, 'presentation', 'widgets'),
+        p.join(lib, 'features', feature, 'domain', 'entities'),
+        p.join(lib, 'features', feature, 'domain', 'repositories'),
+        p.join(lib, 'features', feature, 'domain', 'usecases'),
+        p.join(lib, 'features', feature, 'data', 'models'),
+        p.join(lib, 'features', feature, 'data', 'datasources'),
+        p.join(lib, 'features', feature, 'data', 'repositories'),
       ],
       // Navigation
-      '$lib/navigation',
+      p.join(lib, 'navigation'),
       // Shared
-      '$lib/shared/widgets',
-      '$lib/shared/theme',
-      '$lib/shared/providers',
-      '$lib/shared/blocs',
+      p.join(lib, 'shared', 'widgets'),
+      p.join(lib, 'shared', 'theme'),
+      p.join(lib, 'shared', 'providers'),
+      p.join(lib, 'shared', 'blocs'),
       // Error / utils
-      '$lib/error',
-      '$lib/utils',
+      p.join(lib, 'error'),
+      p.join(lib, 'utils'),
       // Asset directories
-      '$root/animations',
-      '$root/images/svg',
-      '$root/images/png',
-      '$root/assets/sounds',
+      p.join(root, 'animations'),
+      p.join(root, 'images', 'svg'),
+      p.join(root, 'images', 'png'),
+      p.join(root, 'assets', 'sounds'),
     ];
 
     for (final dir in dirs) {

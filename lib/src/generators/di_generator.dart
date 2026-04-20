@@ -1,10 +1,11 @@
 import 'package:flutter_forge/src/models/project_config.dart';
 import 'package:flutter_forge/src/utils/file_utils.dart';
+import 'package:path/path.dart' as p;
 
 final class DiGenerator {
   Future<void> run(ProjectConfig config) async {
     final pkg = config.projectName;
-    final base = '${config.projectPath}/lib/core/di';
+    final base = p.join(config.projectPath, 'lib', 'core', 'di');
 
     await Future.wait([
       _writeInjection(base, pkg),
@@ -15,7 +16,7 @@ final class DiGenerator {
 
   Future<void> _writeInjection(String base, String pkg) async {
     await FileUtils.writeFile(
-      '$base/injection.dart',
+      p.join(base, 'injection.dart'),
       '''
 import 'package:get_it/get_it.dart';
 import 'package:injectable/injectable.dart';
@@ -45,7 +46,7 @@ abstract final class Environment {
 
   Future<void> _writeRegisterModule(String base) async {
     await FileUtils.writeFile(
-      '$base/register_module.dart',
+      p.join(base, 'register_module.dart'),
       '''
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:injectable/injectable.dart';
@@ -73,7 +74,7 @@ abstract class RegisterModule {
     final analyticsLine = _buildAnalyticsRegistration(config);
 
     await FileUtils.writeFile(
-      '$base/injection.config.dart',
+      p.join(base, 'injection.config.dart'),
       '''
 // GENERATED CODE — run `dart run build_runner build` to regenerate.
 // ignore_for_file: type=lint, unnecessary_lambdas, lines_longer_than_80_chars

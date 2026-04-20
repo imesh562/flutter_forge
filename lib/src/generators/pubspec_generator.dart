@@ -1,5 +1,6 @@
 import 'package:flutter_forge/src/models/project_config.dart';
 import 'package:flutter_forge/src/utils/file_utils.dart';
+import 'package:path/path.dart' as p;
 
 final class PubspecGenerator {
   Future<void> run(ProjectConfig config) async {
@@ -82,7 +83,7 @@ flutter:
 ''';
 
     await FileUtils.writeFile(
-      '${config.projectPath}/pubspec.yaml',
+      p.join(config.projectPath, 'pubspec.yaml'),
       content,
     );
   }

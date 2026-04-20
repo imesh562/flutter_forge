@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_forge/src/models/flavor_config.dart';
 import 'package:flutter_forge/src/models/project_config.dart';
 import 'package:flutter_forge/src/utils/file_utils.dart';
+import 'package:path/path.dart' as p;
 
 final class VscodeGenerator {
   Future<void> run(ProjectConfig config) async {
@@ -48,7 +49,7 @@ final class VscodeGenerator {
     });
 
     await FileUtils.writeFile(
-      '${config.projectPath}/.vscode/launch.json',
+      p.join(config.projectPath, '.vscode', 'launch.json'),
       '$json\n',
     );
   }
@@ -57,7 +58,7 @@ final class VscodeGenerator {
     if (config.useFlavors) {
       for (final flavor in Flavor.values) {
         await FileUtils.writeFile(
-          '${config.projectPath}/.run/${config.appDisplayName} ${flavor.label}.run.xml',
+          p.join(config.projectPath, '.run', '${config.appDisplayName} ${flavor.label}.run.xml'),
           '''
 <component name="ProjectRunConfigurationManager">
   <configuration default="false"
@@ -76,7 +77,7 @@ final class VscodeGenerator {
       }
     } else {
       await FileUtils.writeFile(
-        '${config.projectPath}/.run/${config.appDisplayName}.run.xml',
+        p.join(config.projectPath, '.run', '${config.appDisplayName}.run.xml'),
         '''
 <component name="ProjectRunConfigurationManager">
   <configuration default="false"
