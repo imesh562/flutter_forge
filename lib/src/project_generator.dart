@@ -242,7 +242,18 @@ final class ProjectGenerator {
 
     final featureStep = '''
 ║  ${useFirebase ? '5' : (useFlavors ? '4' : '3')}. Add features:                                        ║
-║     dart run flutter_forge_generate                      ║''';
+║     dart pub global run flutter_forge:generate           ║''';
+
+    // On Windows the pub-cache bin dir is often missing from PATH, so surface
+    // the universal fallback command rather than the shortcut alias.
+    final windowsNote = Platform.isWindows
+        ? '''
+║                                                          ║
+║  Windows tip: if flutter_forge_generate is not found,   ║
+║  add the Dart pub cache to your PATH:                    ║
+║  %LOCALAPPDATA%\\Pub\\Cache\\bin                           ║
+║  or always use the full command above.                   ║'''
+        : '';
 
     stdout.writeln('''
 
@@ -255,7 +266,7 @@ $firebaseSteps$codegenStep
 ║                                                          ║
 $runStep
 ║                                                          ║
-$featureStep
+$featureStep$windowsNote
 ╚══════════════════════════════════════════════════════════╝
 ''');
   }

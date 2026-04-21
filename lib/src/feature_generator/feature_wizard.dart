@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_forge/src/color_generator/color_adder.dart';
@@ -30,6 +32,17 @@ final class FeatureWizard {
   final _repoGen = RepositoryGenerator();
   final _blocGen = BlocGenerator();
 
+  // Async stdin reader — avoids blocking the event loop on Windows where
+  // stdin.readLineSync() prevents pending stdout flushes from executing.
+  final _lines = StreamIterator<String>(
+    stdin.transform(utf8.decoder).transform(const LineSplitter()),
+  );
+
+  Future<String> _readLine() async {
+    await _lines.moveNext();
+    return _lines.current;
+  }
+
   Future<void> run() async {
     _printHeader();
 
@@ -44,7 +57,7 @@ final class FeatureWizard {
     }
 
     while (true) {
-      final mode = _promptChoice(
+      final mode = await _promptChoice(
         'What would you like to generate?',
         options: [
           'Endpoint (REST or WebSocket)',
@@ -88,23 +101,23 @@ final class FeatureWizard {
     final features = await _registry.featureNames();
     final feature = await _resolveFeature(features);
 
-    final endpointName = _prompt('Endpoint name (camelCase, e.g. getUserProfile)');
-    final endpointType = _promptChoice('Endpoint type', options: ['REST', 'WebSocket']);
+    final endpointName = await _prompt('Endpoint name (camelCase, e.g. getUserProfile)');
+    final endpointType = await _promptChoice('Endpoint type', options: ['REST', 'WebSocket']);
 
     var method = 'GET';
     var path = '/';
 
     if (endpointType == 0) {
       method = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'][
-          _promptChoice('HTTP method', options: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])];
-      path = _prompt('URL path (e.g. /users/:id)');
+          await _promptChoice('HTTP method', options: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])];
+      path = await _prompt('URL path (e.g. /users/:id)');
     }
 
     stdout.writeln('\n── Request fields (enter empty name to stop) ──');
-    final requestFields = _collectFields();
+    final requestFields = await _collectFields();
 
     stdout.writeln('\n── Response fields (enter empty name to stop) ──');
-    final responseFields = _collectFields();
+    final responseFields = await _collectFields();
 
     final requestClass = '${StringUtils.toPascalCase(endpointName)}Request';
     final responseClass = '${StringUtils.toPascalCase(endpointName)}Response';
@@ -171,7 +184,7 @@ final class FeatureWizard {
   // ── Feature scaffold flow ─────────────────────────────────────────────────
 
   Future<void> _runFeatureScaffoldFlow() async {
-    final featureName = _prompt('Feature name (snake_case)');
+    final featureName = await _prompt('Feature name (snake_case)');
     if (!StringUtils.isSnakeCase(featureName)) {
       stdout.writeln('✖ Feature name must be snake_case.');
       return;
@@ -211,7 +224,7 @@ final class FeatureWizard {
         await _registry.setPrimaryBloc(featureName, featureName, existingType);
       }
     } else {
-      final blocTypeChoice = _promptChoice(
+      final blocTypeChoice = await _promptChoice(
         'State manager type for this feature?',
         options: ['BLoC', 'Cubit'],
       );
@@ -258,7 +271,7 @@ final class FeatureWizard {
   // ── Widget flow ───────────────────────────────────────────────────────────
 
   Future<void> _runWidgetFlow() async {
-    final destination = _promptChoice(
+    final destination = await _promptChoice(
       'Where would you like to add the widget?',
       options: [
         'Feature folder  (lib/features/<feature>/presentation/widgets/)',
@@ -270,7 +283,7 @@ final class FeatureWizard {
 
     if (destination == 1) {
       // Shared widgets path — no feature selection needed.
-      final widgetName = _prompt('Widget class name (PascalCase, e.g. AppButton)');
+      final widgetName = await _prompt('Widget class name (PascalCase, e.g. AppButton)');
       final fileName = '${StringUtils.toSnakeCase(widgetName)}.dart';
       filePath = p.join(_projectPath, 'lib/shared/widgets/$fileName');
 
@@ -322,7 +335,7 @@ class $widgetName extends StatelessWidget {
       // Feature folder path.
       final features = await _registry.featureNames();
       final feature = await _resolveFeature(features);
-      final widgetName = _prompt('Widget class name (PascalCase, e.g. UserAvatar)');
+      final widgetName = await _prompt('Widget class name (PascalCase, e.g. UserAvatar)');
       final fileName = '${StringUtils.toSnakeCase(widgetName)}.dart';
       filePath = p.join(
         _projectPath,
@@ -351,7 +364,7 @@ class $widgetName extends StatelessWidget {
   Future<void> _runScreenFlow() async {
     final features = await _registry.featureNames();
     final feature = await _resolveFeature(features);
-    final pageName = _prompt('Screen class name (PascalCase, e.g. ProfilePage)');
+    final pageName = await _prompt('Screen class name (PascalCase, e.g. ProfilePage)');
     final fileName = '${StringUtils.toSnakeCase(pageName)}.dart';
 
     final filePath = p.join(
@@ -438,10 +451,10 @@ class $widgetName extends StatelessWidget {
     stdout.writeln('  [n] Enter a new feature name');
 
     stdout.write('  Choose [1–${existingFeatures.length} / n]: ');
-    final raw = stdin.readLineSync()?.trim() ?? '';
+    final raw = (await _readLine()).trim();
 
     if (raw == 'n' || raw.isEmpty) {
-      final name = _prompt('New feature name (snake_case)');
+      final name = await _prompt('New feature name (snake_case)');
       await _scaffoldFeatureDirs(name);
       await _registry.ensureFeature(name);
       return name;
@@ -469,10 +482,10 @@ class $widgetName extends StatelessWidget {
       ...cubits.map((c) => 'Add to Cubit: $c'),
     ];
 
-    final choice = _promptChoice('BLoC / Cubit assignment', options: options);
+    final choice = await _promptChoice('BLoC / Cubit assignment', options: options);
 
     if (choice == 0) {
-      final name = _prompt('New BLoC name (snake_case)');
+      final name = await _prompt('New BLoC name (snake_case)');
       await _blocGen.createBloc(
         projectPath: _projectPath,
         pkg: _pkg,
@@ -483,7 +496,7 @@ class $widgetName extends StatelessWidget {
     }
 
     if (choice == 1) {
-      final name = _prompt('New Cubit name (snake_case)');
+      final name = await _prompt('New Cubit name (snake_case)');
       await _blocGen.createCubit(
         projectPath: _projectPath,
         pkg: _pkg,
@@ -556,7 +569,7 @@ class $widgetName extends StatelessWidget {
       return;
     }
 
-    final feature = _pickExistingFeature(features, label: 'Feature');
+    final feature = await _pickExistingFeature(features, label: 'Feature');
 
     final endpoints = await _registry.endpointsForFeature(feature);
     if (endpoints.isEmpty) {
@@ -564,13 +577,13 @@ class $widgetName extends StatelessWidget {
       return;
     }
 
-    final endpointIndex = _promptChoice(
+    final endpointIndex = await _promptChoice(
       'Endpoint',
       options: endpoints,
     );
     final endpointName = endpoints[endpointIndex];
 
-    final modelType = _promptChoice(
+    final modelType = await _promptChoice(
       'Model to update',
       options: ['Request', 'Response'],
     );
@@ -604,7 +617,7 @@ class $widgetName extends StatelessWidget {
     }
     stdout.writeln('');
 
-    final action = _promptChoice(
+    final action = await _promptChoice(
       'What would you like to do?',
       options: [
         'Add fields',
@@ -619,7 +632,7 @@ class $widgetName extends StatelessWidget {
     switch (action) {
       case 0: // Add
         stdout.writeln('\n── New fields to add ──');
-        final newFields = _collectFields();
+        final newFields = await _collectFields();
         updatedFields = [...currentFields, ...newFields];
 
       case 1: // Remove
@@ -627,7 +640,7 @@ class $widgetName extends StatelessWidget {
           stdout.writeln('No fields to remove.');
           return;
         }
-        final removeIndex = _promptChoice(
+        final removeIndex = await _promptChoice(
           'Field to remove',
           options: currentFields
               .map((f) => '${f['type']} ${f['name']}')
@@ -643,13 +656,13 @@ class $widgetName extends StatelessWidget {
           stdout.writeln('No fields to rename.');
           return;
         }
-        final renameIndex = _promptChoice(
+        final renameIndex = await _promptChoice(
           'Field to rename',
           options: currentFields
               .map((f) => '${f['type']} ${f['name']}')
               .toList(),
         );
-        final newFieldName = _prompt(
+        final newFieldName = await _prompt(
           'New name for "${currentFields[renameIndex]['name']}"',
         );
         updatedFields = [
@@ -662,7 +675,7 @@ class $widgetName extends StatelessWidget {
 
       case 3: // Replace all
         stdout.writeln('\n── Replacement fields ──');
-        updatedFields = _collectFields();
+        updatedFields = await _collectFields();
 
       default:
         return;
@@ -702,8 +715,8 @@ class $widgetName extends StatelessWidget {
       return;
     }
 
-    final oldName = _pickExistingFeature(features, label: 'Feature to rename');
-    final newName = _prompt('New feature name (snake_case)');
+    final oldName = await _pickExistingFeature(features, label: 'Feature to rename');
+    final newName = await _prompt('New feature name (snake_case)');
 
     if (!StringUtils.isSnakeCase(newName)) {
       stdout.writeln('✖ Feature name must be snake_case.');
@@ -744,7 +757,7 @@ class $widgetName extends StatelessWidget {
       return;
     }
 
-    final feature = _pickExistingFeature(features, label: 'Feature to delete');
+    final feature = await _pickExistingFeature(features, label: 'Feature to delete');
     final dependents = await _findExternalDependents(feature);
 
     stdout.writeln('');
@@ -760,7 +773,7 @@ class $widgetName extends StatelessWidget {
     }
 
     stdout.write('  Delete feature "$feature"? This cannot be undone. [y/N]: ');
-    final confirm = stdin.readLineSync()?.trim().toLowerCase();
+    final confirm = (await _readLine()).trim().toLowerCase();
     if (confirm != 'y') {
       stdout.writeln('  Cancelled.');
       return;
@@ -851,52 +864,52 @@ class $widgetName extends StatelessWidget {
 
   // ── Feature picker (existing only — no create option) ─────────────────────
 
-  String _pickExistingFeature(
+  Future<String> _pickExistingFeature(
     List<String> features, {
     String label = 'Feature',
-  }) {
+  }) async {
     stdout.writeln('\n$label:');
     for (var i = 0; i < features.length; i++) {
       stdout.writeln('  [${i + 1}] ${features[i]}');
     }
     while (true) {
       stdout.write('  Choose [1–${features.length}]: ');
-      final raw = stdin.readLineSync()?.trim() ?? '';
+      final raw = (await _readLine()).trim();
       final index = (int.tryParse(raw) ?? 0) - 1;
       if (index >= 0 && index < features.length) return features[index];
       stdout.writeln('  ✖ Enter a number between 1 and ${features.length}.');
     }
   }
 
-  List<Map<String, String>> _collectFields() {
-    final mode = _promptChoice(
+  Future<List<Map<String, String>>> _collectFields() async {
+    final mode = await _promptChoice(
       'How would you like to define fields?',
       options: ['Enter manually', 'Paste JSON'],
     );
     return mode == 1 ? _collectFieldsFromJson() : _collectFieldsManually();
   }
 
-  List<Map<String, String>> _collectFieldsManually() {
+  Future<List<Map<String, String>>> _collectFieldsManually() async {
     final fields = <Map<String, String>>[];
     while (true) {
       stdout.write('  Field name (or press Enter to finish): ');
-      final name = stdin.readLineSync()?.trim() ?? '';
+      final name = (await _readLine()).trim();
       if (name.isEmpty) break;
 
       stdout.write('  Type for "$name" (e.g. String, int, bool, double): ');
-      final type = stdin.readLineSync()?.trim() ?? 'String';
+      final type = (await _readLine()).trim();
       fields.add({'name': name, 'type': type.isEmpty ? 'String' : type});
     }
     return fields;
   }
 
-  List<Map<String, String>> _collectFieldsFromJson() {
+  Future<List<Map<String, String>>> _collectFieldsFromJson() async {
     stdout.writeln('  Paste your JSON below. Press Enter on an empty line when done.');
     stdout.writeln('');
 
     final lines = <String>[];
     while (true) {
-      final line = stdin.readLineSync() ?? '';
+      final line = await _readLine();
       // Stop on the first empty line after content has been entered.
       if (line.isEmpty && lines.isNotEmpty) break;
       lines.add(line);
@@ -914,7 +927,7 @@ class $widgetName extends StatelessWidget {
       stdout.writeln('');
 
       stdout.write('  Use these fields? [Y/n]: ');
-      final confirm = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+      final confirm = (await _readLine()).trim().toLowerCase();
       if (confirm == 'n') {
         stdout.writeln('  Falling back to manual entry.');
         return _collectFieldsManually();
@@ -932,7 +945,7 @@ class $widgetName extends StatelessWidget {
 
   Future<void> _runColorMenuFlow() async {
     while (true) {
-      final action = _promptChoice(
+      final action = await _promptChoice(
         'Color tokens — what would you like to do?',
         options: ['Add token', 'Update token', 'Remove token', 'List tokens', 'Back'],
       );
@@ -953,9 +966,9 @@ class $widgetName extends StatelessWidget {
   }
 
   Future<void> _runColorAddFlow() async {
-    final name = _prompt('Color name (camelCase, e.g. cardBackground)');
-    final lightHex = _prompt('Light hex (e.g. #FFFFFF)');
-    final darkHex = _prompt('Dark hex (e.g. #1E1E1E)');
+    final name = await _prompt('Color name (camelCase, e.g. cardBackground)');
+    final lightHex = await _prompt('Light hex (e.g. #FFFFFF)');
+    final darkHex = await _prompt('Dark hex (e.g. #1E1E1E)');
     try {
       await _colorAdder.add(name: name, lightHex: lightHex, darkHex: darkHex);
       stdout.writeln('\n✔ Added "$name" to AppColorScheme.');
@@ -966,10 +979,10 @@ class $widgetName extends StatelessWidget {
   }
 
   Future<void> _runColorUpdateFlow() async {
-    final name = _prompt('Color name to update');
+    final name = await _prompt('Color name to update');
     stdout.writeln('  Leave blank to keep the current value.');
-    final lightHex = _promptOptional('New light hex (e.g. #FFFFFF)');
-    final darkHex = _promptOptional('New dark hex (e.g. #1E1E1E)');
+    final lightHex = await _promptOptional('New light hex (e.g. #FFFFFF)');
+    final darkHex = await _promptOptional('New dark hex (e.g. #1E1E1E)');
     if (lightHex == null && darkHex == null) {
       stdout.writeln('  Nothing to update.');
       return;
@@ -984,7 +997,7 @@ class $widgetName extends StatelessWidget {
   }
 
   Future<void> _runColorRemoveFlow() async {
-    final name = _prompt('Color name to remove');
+    final name = await _prompt('Color name to remove');
     try {
       await _colorAdder.remove(name);
       stdout.writeln('\n✔ Removed "$name" from AppColorScheme.');
@@ -1153,7 +1166,7 @@ class _${pageName}State extends State<$pageName>
 ''';
   }
 
-  int _promptChoice(String label, {required List<String> options}) {
+  Future<int> _promptChoice(String label, {required List<String> options}) async {
     stdout.writeln('\n$label:');
     for (var i = 0; i < options.length; i++) {
       stdout.writeln('  [${i + 1}] ${options[i]}');
@@ -1161,24 +1174,24 @@ class _${pageName}State extends State<$pageName>
 
     while (true) {
       stdout.write('  Choose [1–${options.length}]: ');
-      final raw = stdin.readLineSync()?.trim() ?? '';
+      final raw = (await _readLine()).trim();
       final index = (int.tryParse(raw) ?? 0) - 1;
       if (index >= 0 && index < options.length) return index;
       stdout.writeln('  ✖ Enter a number between 1 and ${options.length}.');
     }
   }
 
-  String? _promptOptional(String label) {
+  Future<String?> _promptOptional(String label) async {
     stdout.write('  $label (press Enter to skip): ');
-    final raw = stdin.readLineSync()?.trim() ?? '';
+    final raw = (await _readLine()).trim();
     return raw.isEmpty ? null : raw;
   }
 
-  String _prompt(String label, {String? defaultValue}) {
+  Future<String> _prompt(String label, {String? defaultValue}) async {
     while (true) {
       final hint = defaultValue != null ? ' [$defaultValue]' : '';
       stdout.write('  $label$hint: ');
-      final raw = stdin.readLineSync()?.trim() ?? '';
+      final raw = (await _readLine()).trim();
       final value = raw.isEmpty ? (defaultValue ?? '') : raw;
       if (value.isNotEmpty) return value;
       stdout.writeln('  ✖ Cannot be empty.');

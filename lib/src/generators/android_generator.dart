@@ -10,6 +10,9 @@ final class AndroidGenerator {
       _patchAppBuildGradle(config),
       _patchSettingsGradle(config),
       _patchAndroidManifest(config),
+      // Always write a base strings.xml so android:label="@string/app_name"
+      // is satisfied for both flavor and non-flavor builds.
+      _writeMainStrings(config),
       if (config.useFlavors) _writeFlavorStrings(config),
       if (config.useFirebase) _patchProjectBuildGradle(config),
     ]);
@@ -34,6 +37,24 @@ final class AndroidGenerator {
       }
       return result;
     });
+  }
+
+  /// Writes `android/app/src/main/res/values/strings.xml` with the base
+  /// `app_name` string.  This satisfies the `@string/app_name` reference in
+  /// AndroidManifest.xml for non-flavor builds; flavor builds override it with
+  /// per-flavor strings.xml files written by [_writeFlavorStrings].
+  Future<void> _writeMainStrings(ProjectConfig config) async {
+    final dir = p.join(
+      config.projectPath, 'android', 'app', 'src', 'main', 'res', 'values',
+    );
+    await FileUtils.ensureDir(dir);
+    await FileUtils.writeFile(
+      p.join(dir, 'strings.xml'),
+      '<?xml version="1.0" encoding="utf-8"?>\n'
+          '<resources>\n'
+          '    <string name="app_name">${config.appDisplayName}</string>\n'
+          '</resources>\n',
+    );
   }
 
   Future<void> _writeFlavorStrings(ProjectConfig config) async {
@@ -77,21 +98,41 @@ final class AndroidGenerator {
       }
 
       // Enable core library desugaring required by flutter_local_notifications.
+      // Use a regex so any VERSION_XX value and any line-ending style are matched.
       if (!result.contains('isCoreLibraryDesugaringEnabled')) {
-        result = result.replaceFirst(
-          'targetCompatibility = JavaVersion.VERSION_11',
-          'targetCompatibility = JavaVersion.VERSION_11\n'
-              '        isCoreLibraryDesugaringEnabled = true',
+        result = result.replaceFirstMapped(
+          RegExp(r'targetCompatibility\s*=\s*JavaVersion\.VERSION_\d+'),
+          (m) => '${m[0]}\n        isCoreLibraryDesugaringEnabled = true',
         );
       }
       if (!result.contains('coreLibraryDesugaring')) {
-        result = result.replaceFirst(
-          'flutter {\n    source = "../.."\n}',
-          'flutter {\n    source = "../.."\n}\n\n'
-              'dependencies {\n'
-              '    coreLibraryDesugaring'
-              '("com.android.tools:desugar_jdk_libs:2.1.4")\n}',
-        );
+        const dep =
+            '    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")';
+        // Prefer injecting into an existing dependencies block so we never
+        // create a duplicate block (which Gradle rejects).
+        final existingDeps = RegExp(r'(dependencies\s*\{)');
+        if (existingDeps.hasMatch(result)) {
+          result = result.replaceFirstMapped(
+            existingDeps,
+            (m) => '${m[0]}\n$dep',
+          );
+        } else {
+          // No dependencies block yet — create one after the flutter { source }
+          // block.  Use a regex so whitespace and \r\n line endings are tolerated.
+          final flutterSourceRe = RegExp(
+            r'flutter\s*\{\s*source\s*=\s*"\.\./\.\."\s*\}',
+            multiLine: true,
+          );
+          if (flutterSourceRe.hasMatch(result)) {
+            result = result.replaceFirstMapped(
+              flutterSourceRe,
+              (m) => '${m[0]}\n\ndependencies {\n$dep\n}',
+            );
+          } else {
+            // Fallback: append a dependencies block at the end of the file.
+            result = '$result\n\ndependencies {\n$dep\n}';
+          }
+        }
       }
 
       if (config.useFirebase) {

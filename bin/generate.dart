@@ -48,7 +48,7 @@ Examples:
       '✖ codegen_registry.json not found in: $projectPath\n'
       '  Run this command from the root of a flutter_forge project,\n'
       '  or pass the project path as the first argument:\n'
-      '    dart run flutter_forge_generate <path>',
+      '    dart pub global run flutter_forge:generate <path>',
     );
     exit(1);
   }

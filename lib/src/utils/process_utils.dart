@@ -9,9 +9,21 @@ abstract final class ProcessUtils {
     String? workingDirectory,
     bool verbose = true,
   }) async {
+    // On Windows, batch-script executables (flutter.bat, dart.bat) are not
+    // found by Process.start unless routed through the shell.
+    final String resolvedExecutable;
+    final List<String> resolvedArguments;
+    if (Platform.isWindows) {
+      resolvedExecutable = 'cmd';
+      resolvedArguments = ['/c', executable, ...arguments];
+    } else {
+      resolvedExecutable = executable;
+      resolvedArguments = arguments;
+    }
+
     final process = await Process.start(
-      executable,
-      arguments,
+      resolvedExecutable,
+      resolvedArguments,
       workingDirectory: workingDirectory,
     );
 
