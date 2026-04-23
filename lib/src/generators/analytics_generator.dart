@@ -81,10 +81,9 @@ final class MixpanelAnalyticsService implements AnalyticsService {
 
   @override
   Future<void> initialize() async {
-    _mixpanel = await Mixpanel.init(
-      FlavorConfig.instance.mixpanelToken!,
-      trackAutomaticEvents: true,
-    );
+    final token = FlavorConfig.instance.mixpanelToken;
+    if (token == null) return;
+    _mixpanel = await Mixpanel.init(token, trackAutomaticEvents: true);
   }
 
   @override

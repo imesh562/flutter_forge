@@ -130,7 +130,7 @@ void main() {
       );
 
       // Create the expected files.
-      final dir = Directory('${tmp.path}/lib/features/auth/presentation');
+      final dir = Directory('${tmp.path}/lib/features/auth/presentation/blocs/auth');
       await dir.create(recursive: true);
       for (final f in ['auth_bloc.dart', 'auth_event.dart', 'auth_state.dart']) {
         await File('${dir.path}/$f').writeAsString('// stub');

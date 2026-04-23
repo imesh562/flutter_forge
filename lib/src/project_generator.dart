@@ -72,6 +72,16 @@ final class ProjectGenerator {
           await FileUtils.deleteIfExists(
             p.join(config.projectPath, 'lib', 'main.dart'),
           );
+          // flutter create generates test/widget_test.dart that imports main.dart
+          // and references MyApp. Replace it with a compilable no-op placeholder.
+          await FileUtils.writeFile(
+            p.join(config.projectPath, 'test', 'widget_test.dart'),
+            "import 'package:flutter_test/flutter_test.dart';\n"
+            '\n'
+            "void main() {\n"
+            "  testWidgets('placeholder', (tester) async {});\n"
+            "}\n",
+          );
         },
         () async {
           stdout.writeln('── Step 3/14  Scaffolding Clean Architecture tree ───────');

@@ -28,9 +28,9 @@ void main() {
       );
 
       final presentationDir =
-          p.join(tmp.path, 'lib/features/auth/presentation');
+          p.join(tmp.path, 'lib/features/auth/presentation/blocs/auth');
       final testDir =
-          p.join(tmp.path, 'test/features/auth/presentation');
+          p.join(tmp.path, 'test/features/auth/presentation/blocs/auth');
 
       for (final file in [
         p.join(presentationDir, 'auth_bloc.dart'),
@@ -51,7 +51,7 @@ void main() {
       );
 
       final content = await File(
-        p.join(tmp.path, 'lib/features/auth/presentation/auth_bloc.dart'),
+        p.join(tmp.path, 'lib/features/auth/presentation/blocs/auth/auth_bloc.dart'),
       ).readAsString();
 
       expect(content, contains('class AuthBloc extends Bloc<AuthEvent, AuthState>'));
@@ -68,7 +68,7 @@ void main() {
       );
 
       final content = await File(
-        p.join(tmp.path, 'lib/features/auth/presentation/auth_event.dart'),
+        p.join(tmp.path, 'lib/features/auth/presentation/blocs/auth/auth_event.dart'),
       ).readAsString();
 
       expect(content, contains('// <<EVENTS>>'));
@@ -85,7 +85,7 @@ void main() {
       );
 
       final content = await File(
-        p.join(tmp.path, 'lib/features/auth/presentation/auth_state.dart'),
+        p.join(tmp.path, 'lib/features/auth/presentation/blocs/auth/auth_state.dart'),
       ).readAsString();
 
       expect(content, contains('// <<STATES>>'));
@@ -104,7 +104,7 @@ void main() {
       final content = await File(
         p.join(
           tmp.path,
-          'test/features/auth/presentation/auth_bloc_test.dart',
+          'test/features/auth/presentation/blocs/auth/auth_bloc_test.dart',
         ),
       ).readAsString();
 
@@ -125,21 +125,21 @@ void main() {
       expect(
         File(p.join(
           tmp.path,
-          'lib/features/profile/presentation/profile_cubit.dart',
+          'lib/features/profile/presentation/cubits/profile/profile_cubit.dart',
         )).existsSync(),
         isTrue,
       );
       expect(
         File(p.join(
           tmp.path,
-          'lib/features/profile/presentation/profile_state.dart',
+          'lib/features/profile/presentation/cubits/profile/profile_state.dart',
         )).existsSync(),
         isTrue,
       );
       expect(
         File(p.join(
           tmp.path,
-          'test/features/profile/presentation/profile_cubit_test.dart',
+          'test/features/profile/presentation/cubits/profile/profile_cubit_test.dart',
         )).existsSync(),
         isTrue,
       );
@@ -156,7 +156,7 @@ void main() {
       final content = await File(
         p.join(
           tmp.path,
-          'lib/features/profile/presentation/profile_cubit.dart',
+          'lib/features/profile/presentation/cubits/profile/profile_cubit.dart',
         ),
       ).readAsString();
 
@@ -204,7 +204,7 @@ void main() {
       );
 
       final content = await File(
-        p.join(tmp.path, 'lib/features/auth/presentation/auth_event.dart'),
+        p.join(tmp.path, 'lib/features/auth/presentation/blocs/auth/auth_event.dart'),
       ).readAsString();
 
       expect(content, contains('final class LoginStarted extends AuthEvent'));
@@ -225,7 +225,7 @@ void main() {
       );
 
       final content = await File(
-        p.join(tmp.path, 'lib/features/auth/presentation/auth_state.dart'),
+        p.join(tmp.path, 'lib/features/auth/presentation/blocs/auth/auth_state.dart'),
       ).readAsString();
 
       expect(content, contains('final class LoginSuccess extends AuthState'));
@@ -247,7 +247,7 @@ void main() {
       );
 
       final content = await File(
-        p.join(tmp.path, 'lib/features/auth/presentation/auth_bloc.dart'),
+        p.join(tmp.path, 'lib/features/auth/presentation/blocs/auth/auth_bloc.dart'),
       ).readAsString();
 
       expect(content, contains('on<LoginStarted>(_onLogin)'));
@@ -257,7 +257,7 @@ void main() {
 
     test('throws StateError when sentinel is missing', () async {
       final dir = Directory(
-        p.join(tmp.path, 'lib/features/auth/presentation'),
+        p.join(tmp.path, 'lib/features/auth/presentation/blocs/auth'),
       );
       await dir.create(recursive: true);
 
@@ -298,7 +298,7 @@ void main() {
       );
 
       final eventContent = await File(
-        p.join(tmp.path, 'lib/features/auth/presentation/auth_event.dart'),
+        p.join(tmp.path, 'lib/features/auth/presentation/blocs/auth/auth_event.dart'),
       ).readAsString();
 
       expect(
@@ -307,12 +307,164 @@ void main() {
       );
 
       final stateContent = await File(
-        p.join(tmp.path, 'lib/features/auth/presentation/auth_state.dart'),
+        p.join(tmp.path, 'lib/features/auth/presentation/blocs/auth/auth_state.dart'),
       ).readAsString();
 
       expect(
         stateContent,
         contains('final class LoginWebSocketConnecting extends AuthState'),
+      );
+    });
+  });
+
+  group('BlocGenerator.addCustomEventToBloc', () {
+    Future<void> _setupBloc() => gen.createBloc(
+          projectPath: tmp.path,
+          pkg: 'my_app',
+          feature: 'profile',
+          blocName: 'profile',
+        );
+
+    test('adds event with request type, success with data, and handler stub', () async {
+      await _setupBloc();
+      await gen.addCustomEventToBloc(
+        projectPath: tmp.path,
+        feature: 'profile',
+        blocName: 'profile',
+        actionName: 'loadProfile',
+        requestType: 'String',
+        responseType: 'UserProfile',
+      );
+
+      final eventContent = await File(
+        p.join(tmp.path, 'lib/features/profile/presentation/blocs/profile/profile_event.dart'),
+      ).readAsString();
+      expect(eventContent, contains('final class LoadProfileStarted extends ProfileEvent'));
+      expect(eventContent, contains('final String request;'));
+
+      final stateContent = await File(
+        p.join(tmp.path, 'lib/features/profile/presentation/blocs/profile/profile_state.dart'),
+      ).readAsString();
+      expect(stateContent, contains('final class LoadProfileSuccess extends ProfileState'));
+      expect(stateContent, contains('final UserProfile data;'));
+      expect(stateContent, contains('final class LoadProfileFailure extends ProfileState'));
+
+      final blocContent = await File(
+        p.join(tmp.path, 'lib/features/profile/presentation/blocs/profile/profile_bloc.dart'),
+      ).readAsString();
+      expect(blocContent, contains('on<LoadProfileStarted>(_onLoadProfile);'));
+      expect(blocContent, contains('Future<void> _onLoadProfile('));
+      expect(blocContent, contains('emit(const ProfileLoading())'));
+      // Handler is a stub — no real repository call, just TODO
+      expect(blocContent, contains('// TODO: replace with the actual repository call'));
+    });
+
+    test('adds event with no request type (no-arg event)', () async {
+      await _setupBloc();
+      await gen.addCustomEventToBloc(
+        projectPath: tmp.path,
+        feature: 'profile',
+        blocName: 'profile',
+        actionName: 'refreshProfile',
+      );
+
+      final eventContent = await File(
+        p.join(tmp.path, 'lib/features/profile/presentation/blocs/profile/profile_event.dart'),
+      ).readAsString();
+      expect(eventContent, contains('final class RefreshProfileStarted extends ProfileEvent'));
+      expect(eventContent, isNot(contains('final  request;')));
+      expect(eventContent, contains('List<Object?> get props => const []'));
+    });
+
+    test('success state has no data field when responseType is null', () async {
+      await _setupBloc();
+      await gen.addCustomEventToBloc(
+        projectPath: tmp.path,
+        feature: 'profile',
+        blocName: 'profile',
+        actionName: 'clearProfile',
+        responseType: null,
+      );
+
+      final stateContent = await File(
+        p.join(tmp.path, 'lib/features/profile/presentation/blocs/profile/profile_state.dart'),
+      ).readAsString();
+      expect(stateContent, contains('final class ClearProfileSuccess extends ProfileState'));
+      expect(stateContent, isNot(contains('final  data;')));
+      expect(stateContent, contains('List<Object?> get props => const []'));
+    });
+
+    test('throws StateError when bloc files do not exist', () async {
+      expect(
+        () => gen.addCustomEventToBloc(
+          projectPath: tmp.path,
+          feature: 'profile',
+          blocName: 'profile',
+          actionName: 'loadProfile',
+        ),
+        throwsStateError,
+      );
+    });
+  });
+
+  group('BlocGenerator.addCustomMethodToCubit', () {
+    Future<void> _setupCubit() => gen.createCubit(
+          projectPath: tmp.path,
+          pkg: 'my_app',
+          feature: 'cart',
+          cubitName: 'cart',
+        );
+
+    test('adds method with request type, success with data, and method stub', () async {
+      await _setupCubit();
+      await gen.addCustomMethodToCubit(
+        projectPath: tmp.path,
+        feature: 'cart',
+        cubitName: 'cart',
+        actionName: 'addItem',
+        requestType: 'CartItem',
+        responseType: 'Cart',
+      );
+
+      final stateContent = await File(
+        p.join(tmp.path, 'lib/features/cart/presentation/cubits/cart/cart_state.dart'),
+      ).readAsString();
+      expect(stateContent, contains('final class AddItemSuccess extends CartState'));
+      expect(stateContent, contains('final Cart data;'));
+      expect(stateContent, contains('final class AddItemFailure extends CartState'));
+
+      final cubitContent = await File(
+        p.join(tmp.path, 'lib/features/cart/presentation/cubits/cart/cart_cubit.dart'),
+      ).readAsString();
+      expect(cubitContent, contains('Future<void> addItem(CartItem request) async {'));
+      expect(cubitContent, contains('emit(const CartLoading())'));
+      expect(cubitContent, contains('// TODO: replace with the actual repository call'));
+    });
+
+    test('adds no-arg method when requestType is null', () async {
+      await _setupCubit();
+      await gen.addCustomMethodToCubit(
+        projectPath: tmp.path,
+        feature: 'cart',
+        cubitName: 'cart',
+        actionName: 'clearCart',
+      );
+
+      final cubitContent = await File(
+        p.join(tmp.path, 'lib/features/cart/presentation/cubits/cart/cart_cubit.dart'),
+      ).readAsString();
+      expect(cubitContent, contains('Future<void> clearCart() async {'));
+    });
+
+    test('throws StateError when cubit files do not exist', () async {
+      expect(
+        () => gen.addCustomMethodToCubit(
+          projectPath: tmp.path,
+          feature: 'cart',
+          cubitName: 'cart',
+          actionName: 'addItem',
+        ),
+        throwsStateError,
       );
     });
   });

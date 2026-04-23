@@ -82,9 +82,15 @@ final class AndroidGenerator {
     await FileUtils.patchFile(path, (content) {
       var result = content;
 
-      // Pin NDK to the version required by common plugins (e.g. flutter_secure_storage).
-      // flutter create already emits `ndkVersion = flutter.ndkVersion`, so we
-      // replace that sentinel rather than checking for absence.
+      // Pin NDK to 27.0.12077973 — the minimum version required by
+      // flutter_secure_storage, firebase_*, flutter_local_notifications,
+      // shared_preferences_android, and path_provider_android.
+      // flutter.ndkVersion resolves to whatever NDK Flutter ships with; on
+      // older Flutter installs that can be NDK 26.x, which breaks all of the
+      // above plugins at build time. Pinning the explicit version guarantees
+      // the correct NDK regardless of Flutter SDK version. NDK versions are
+      // backward-compatible, so plugins that only need an older version still
+      // work fine against 27.
       if (result.contains('flutter.ndkVersion')) {
         result = result.replaceFirst(
           'flutter.ndkVersion',
@@ -175,7 +181,13 @@ final class AndroidGenerator {
     await FileUtils.patchFile(path, (content) {
       var result = content;
 
-      // Bump Kotlin to 2.1.0 — required by recent Firebase/GMS artifacts.
+      // Bump Kotlin to 2.1.0. Firebase's play-services-measurement artifacts
+      // (firebase_analytics, firebase_core, firebase_messaging) ship Kotlin
+      // metadata compiled at version 2.1.0. If the project Kotlin Gradle
+      // Plugin is older than 2.1.0 the build fails with:
+      //   "Module was compiled with an incompatible version of Kotlin.
+      //    The binary version of its metadata is 2.1.0, expected version is 1.8.0"
+      // Kotlin 2.1.0 is backward-compatible with older plugins, so bumping is safe.
       result = result.replaceFirstMapped(
         RegExp(r'id\("org\.jetbrains\.kotlin\.android"\)\s+version\s+"[^"]*"'),
         (m) => 'id("org.jetbrains.kotlin.android") version "2.1.0"',

@@ -462,14 +462,18 @@ abstract final class AppTheme {
       '''
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Manages the active [ThemeMode] for the whole app.
 ///
-/// State is the current [ThemeMode] (defaults to [ThemeMode.system]).
-/// Provide above [MaterialApp] via [BlocProvider] and consume with
-/// `context.watch<ThemeCubit>().state`.
+/// Persists the chosen mode in [SharedPreferences] under the key
+/// `theme_mode` so the selection survives app restarts.  Pass the
+/// pre-resolved [SharedPreferences] instance from the DI container:
 ///
 /// ```dart
+/// // In main(), after configureInjection:
+/// BlocProvider(create: (_) => ThemeCubit(getIt<SharedPreferences>()))
+///
 /// // Change theme:
 /// context.read<ThemeCubit>().setTheme(ThemeMode.dark);
 ///
@@ -477,7 +481,18 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 /// context.read<ThemeCubit>().reset();
 /// ```
 final class ThemeCubit extends Cubit<ThemeMode> {
-  ThemeCubit() : super(ThemeMode.system);
+  ThemeCubit(this._prefs) : super(_load(_prefs));
+
+  static const _kKey = 'theme_mode';
+  final SharedPreferences _prefs;
+
+  static ThemeMode _load(SharedPreferences prefs) {
+    return switch (prefs.getString(_kKey)) {
+      'light' => ThemeMode.light,
+      'dark'  => ThemeMode.dark,
+      _       => ThemeMode.system,
+    };
+  }
 
   bool get isLight  => state == ThemeMode.light;
   bool get isDark   => state == ThemeMode.dark;
@@ -485,12 +500,17 @@ final class ThemeCubit extends Cubit<ThemeMode> {
 
   void setTheme(ThemeMode mode) {
     if (state == mode) return;
+    _prefs.setString(_kKey, mode.name);
     emit(mode);
   }
 
-  /// Resets to the device system theme.  Call on logout to avoid a
-  /// leftover dark/light preference bleeding into the next session.
-  void reset() => emit(ThemeMode.system);
+  /// Resets to the device system theme and clears the saved preference.
+  /// Call on logout to avoid a leftover dark/light preference bleeding
+  /// into the next session.
+  void reset() {
+    _prefs.remove(_kKey);
+    emit(ThemeMode.system);
+  }
 }
 ''',
     );

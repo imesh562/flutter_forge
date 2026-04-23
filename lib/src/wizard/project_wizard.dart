@@ -86,8 +86,12 @@ final class ProjectWizard {
       final proceed = await _promptYesNo('Proceed with generation?');
       if (!proceed) {
         stdout.writeln('\nAborted.');
+        await _lines.cancel();
         exit(0);
       }
+      // Cancel the stdin subscription so the process can exit cleanly after
+      // the generator finishes.
+      await _lines.cancel();
       return config;
     } else {
       _printSection('Project settings');
@@ -111,8 +115,12 @@ final class ProjectWizard {
       final proceed = await _promptYesNo('Proceed with generation?');
       if (!proceed) {
         stdout.writeln('\nAborted.');
+        await _lines.cancel();
         exit(0);
       }
+      // Cancel the stdin subscription so the process can exit cleanly after
+      // the generator finishes.
+      await _lines.cancel();
       return config;
     }
   }

@@ -10,6 +10,8 @@ final class NetworkingGenerator {
     await Future.wait([
       _writeNetworkConfig(base, pkg),
       _writeApiHelper(base, pkg),
+      _writeMockConfig(base),
+      _writeMockResponses(base),
       _writeMockApiHelper(base, pkg),
       _writeWebhookHelper(base, pkg),
     ]);
@@ -55,7 +57,6 @@ class ApiHelper {
     _dio.interceptors.addAll([
       _authInterceptor(),
       LogInterceptor(requestBody: true, responseBody: true),
-      _errorInterceptor(),
     ]);
   }
 
@@ -74,54 +75,116 @@ class ApiHelper {
         },
       );
 
-  /// Converts Dio errors into typed [AppException]s before propagating.
-  Interceptor _errorInterceptor() => InterceptorsWrapper(
-        onError: (error, handler) {
-          handler.reject(
-            DioException(
-              requestOptions: error.requestOptions,
-              error: mapHttpError(error),
-              type: error.type,
-              response: error.response,
-            ),
-          );
-        },
+  /// Throws [ServerException] when the response body contains
+  /// `{"success": false, ...}` regardless of the HTTP status code.
+  void _checkSuccess<T>(Response<T> response) {
+    final data = response.data;
+    if (data is Map && data['success'] == false) {
+      throw ServerException(
+        data['message'] as String? ?? 'Request failed',
       );
+    }
+  }
 
   Future<Response<T>> get<T>(
     String path, {
     Map<String, dynamic>? queryParameters,
     Options? options,
-  }) =>
-      _dio.get<T>(path, queryParameters: queryParameters, options: options);
+  }) async {
+    try {
+      final response = await _dio.get<T>(
+        path,
+        queryParameters: queryParameters,
+        options: options,
+      );
+      _checkSuccess(response);
+      return response;
+    } on DioException catch (e) {
+      throw mapHttpError(e);
+    }
+  }
 
   Future<Response<T>> post<T>(
     String path, {
     Object? data,
     Options? options,
-  }) =>
-      _dio.post<T>(path, data: data, options: options);
+  }) async {
+    try {
+      final response = await _dio.post<T>(path, data: data, options: options);
+      _checkSuccess(response);
+      return response;
+    } on DioException catch (e) {
+      throw mapHttpError(e);
+    }
+  }
 
   Future<Response<T>> put<T>(
     String path, {
     Object? data,
     Options? options,
-  }) =>
-      _dio.put<T>(path, data: data, options: options);
+  }) async {
+    try {
+      final response = await _dio.put<T>(path, data: data, options: options);
+      _checkSuccess(response);
+      return response;
+    } on DioException catch (e) {
+      throw mapHttpError(e);
+    }
+  }
 
   Future<Response<T>> patch<T>(
     String path, {
     Object? data,
     Options? options,
-  }) =>
-      _dio.patch<T>(path, data: data, options: options);
+  }) async {
+    try {
+      final response = await _dio.patch<T>(path, data: data, options: options);
+      _checkSuccess(response);
+      return response;
+    } on DioException catch (e) {
+      throw mapHttpError(e);
+    }
+  }
 
   Future<Response<T>> delete<T>(
     String path, {
     Options? options,
-  }) =>
-      _dio.delete<T>(path, options: options);
+  }) async {
+    try {
+      final response = await _dio.delete<T>(path, options: options);
+      _checkSuccess(response);
+      return response;
+    } on DioException catch (e) {
+      throw mapHttpError(e);
+    }
+  }
 }
+''',
+    );
+  }
+
+  Future<void> _writeMockConfig(String base) async {
+    await FileUtils.writeFile(
+      p.join(base, 'mock_config.dart'),
+      '''
+// Toggle kUseMockApi to enable or disable mock networking in the DEV flavor.
+// When false, real network calls are made even in DEV.
+// Use the flutter_forge CLI menu to toggle this value.
+bool kUseMockApi = false;
+''',
+    );
+  }
+
+  Future<void> _writeMockResponses(String base) async {
+    await FileUtils.writeFile(
+      p.join(base, 'mock_responses.dart'),
+      '''
+// Managed by flutter_forge CLI — use the Mock API menu to add or remove entries.
+// Key format: 'METHOD /path'  e.g. 'POST /auth/login', 'GET /user/profile'
+// Values are plain Dart maps — no serialisation needed.
+const Map<String, dynamic> kMockResponses = {
+// <<MOCK_ENTRIES>>
+};
 ''',
     );
   }
@@ -133,11 +196,16 @@ class ApiHelper {
 import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
 
+import 'package:$pkg/error/exceptions.dart';
 import 'api_helper.dart';
+import 'mock_config.dart';
+import 'mock_responses.dart';
 
-/// Active only in the DEV environment; returns empty 200 responses without
-/// touching the network. Register real data by overriding specific methods
-/// in feature-level tests.
+/// Active only in the DEV environment.
+/// When [kUseMockApi] is true, intercepts every call and returns the matching
+/// entry from [kMockResponses], or an empty 200 if no entry is registered.
+/// When [kUseMockApi] is false, delegates to the real [ApiHelper] so you can
+/// hit a live DEV server without changing flavors.
 @LazySingleton(as: ApiHelper, env: [Environment.dev])
 final class MockApiHelper extends ApiHelper {
   @override
@@ -145,44 +213,61 @@ final class MockApiHelper extends ApiHelper {
     String path, {
     Map<String, dynamic>? queryParameters,
     Options? options,
-  }) async =>
-      _empty(path);
+  }) async {
+    if (!kUseMockApi) return super.get(path, queryParameters: queryParameters, options: options);
+    return _mock('GET', path);
+  }
 
   @override
   Future<Response<T>> post<T>(
     String path, {
     Object? data,
     Options? options,
-  }) async =>
-      _empty(path);
+  }) async {
+    if (!kUseMockApi) return super.post(path, data: data, options: options);
+    return _mock('POST', path);
+  }
 
   @override
   Future<Response<T>> put<T>(
     String path, {
     Object? data,
     Options? options,
-  }) async =>
-      _empty(path);
+  }) async {
+    if (!kUseMockApi) return super.put(path, data: data, options: options);
+    return _mock('PUT', path);
+  }
 
   @override
   Future<Response<T>> patch<T>(
     String path, {
     Object? data,
     Options? options,
-  }) async =>
-      _empty(path);
+  }) async {
+    if (!kUseMockApi) return super.patch(path, data: data, options: options);
+    return _mock('PATCH', path);
+  }
 
   @override
   Future<Response<T>> delete<T>(
     String path, {
     Options? options,
-  }) async =>
-      _empty(path);
+  }) async {
+    if (!kUseMockApi) return super.delete(path, options: options);
+    return _mock('DELETE', path);
+  }
 
-  Response<T> _empty<T>(String path) => Response<T>(
-        requestOptions: RequestOptions(path: path),
-        statusCode: 200,
-      );
+  Response<T> _mock<T>(String method, String path) {
+    final data = kMockResponses['\$method \$path'];
+    if (data is Map && data['success'] == false) {
+      throw ServerException(data['message'] as String? ?? 'Request failed');
+    }
+    return Response<T>(
+      data: data as T?,
+      statusCode: 200,
+      requestOptions: RequestOptions(path: path),
+    );
+  }
 }
 ''',
     );
@@ -223,6 +308,7 @@ final class WebhookHelper {
 
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
+  Timer? _reconnectTimer;
   bool _disposed = false;
   int _attempt = 0;
 
@@ -232,19 +318,28 @@ final class WebhookHelper {
 
   Stream<Map<String, dynamic>> get stream => _controller.stream;
 
-  void _connect() {
+  Future<void> _connect() async {
     if (_disposed) return;
     _subscription?.cancel();
     _channel?.sink.close();
 
+    _channel = WebSocketChannel.connect(
+      Uri.parse(FlavorConfig.instance.wsUrl),
+    );
+
+    // In web_socket_channel v2+, connection errors surface via the ready
+    // future, not the stream. Awaiting it here ensures failures are caught
+    // and routed to the reconnect logic instead of crashing as unhandled
+    // exceptions.
     try {
-      _channel = WebSocketChannel.connect(
-        Uri.parse(FlavorConfig.instance.wsUrl),
-      );
+      await _channel!.ready;
     } catch (_) {
       _scheduleReconnect();
       return;
     }
+
+    // Guard: dispose() may have been called while we awaited the handshake.
+    if (_disposed) return;
 
     _subscription = _channel!.stream.listen(
       (data) {
@@ -266,11 +361,16 @@ final class WebhookHelper {
 
   void _scheduleReconnect() {
     if (_disposed) return;
+    // Cancel any pending reconnect before scheduling a new one so that rapid
+    // onError + onDone firings don't stack up multiple concurrent _connect calls.
+    _reconnectTimer?.cancel();
     _attempt++;
     final delay = Duration(
       seconds: min(_maxBackoffSeconds, pow(2, _attempt - 1).toInt()),
     );
-    Future<void>.delayed(delay, _connect);
+    // _connect is async; Timer discards the returned Future. Errors are
+    // handled internally so there are no unhandled rejections.
+    _reconnectTimer = Timer(delay, () => _connect());
   }
 
   /// Sends a raw JSON payload through the open channel.
@@ -281,6 +381,7 @@ final class WebhookHelper {
 
   void dispose() {
     _disposed = true;
+    _reconnectTimer?.cancel();
     _subscription?.cancel();
     _channel?.sink.close();
     _controller.close();

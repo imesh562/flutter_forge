@@ -96,6 +96,7 @@ class ${featurePascal}RepositoryImpl implements ${featurePascal}Repository {
     required String feature,
     required String endpointName,
     required String endpointType,
+    bool hasRequest = true,
   }) async {
     final featurePascal = StringUtils.toPascalCase(feature);
     final endpointPascal = StringUtils.toPascalCase(endpointName);
@@ -128,6 +129,7 @@ class ${featurePascal}RepositoryImpl implements ${featurePascal}Repository {
         requestSnake: requestSnake,
         responseSnake: responseSnake,
         endpointType: endpointType,
+        hasRequest: hasRequest,
       ),
       _updateImpl(
         filePath: implPath,
@@ -141,6 +143,7 @@ class ${featurePascal}RepositoryImpl implements ${featurePascal}Repository {
         requestSnake: requestSnake,
         responseSnake: responseSnake,
         endpointType: endpointType,
+        hasRequest: hasRequest,
       ),
     ]);
   }
@@ -157,19 +160,22 @@ class ${featurePascal}RepositoryImpl implements ${featurePascal}Repository {
     required String requestSnake,
     required String responseSnake,
     required String endpointType,
+    bool hasRequest = true,
   }) async {
     final isWs = endpointType == 'websocket';
     final file = File(filePath);
     if (!file.existsSync()) {
+      final initialImports = hasRequest
+          ? "import 'package:$pkg/features/$feature/data/models/$requestSnake.dart';\n"
+              "import 'package:$pkg/features/$feature/data/models/$responseSnake.dart';\n"
+          : "import 'package:$pkg/features/$feature/data/models/$responseSnake.dart';\n";
       await FileUtils.writeFile(
         filePath,
         '''
 import 'package:fpdart/fpdart.dart';
 
 import 'package:$pkg/error/failures.dart';
-import 'package:$pkg/features/$feature/data/models/$requestSnake.dart';
-import 'package:$pkg/features/$feature/data/models/$responseSnake.dart';
-
+$initialImports
 abstract class ${featurePascal}Repository {
 }
 ''',
@@ -177,12 +183,15 @@ abstract class ${featurePascal}Repository {
     }
 
     await FileUtils.patchFile(filePath, (content) {
-      final importBlock =
-          "import 'package:$pkg/features/$feature/data/models/$requestSnake.dart';\n"
-          "import 'package:$pkg/features/$feature/data/models/$responseSnake.dart';";
-
       var updated = content;
-      if (!updated.contains("'$requestSnake.dart'")) {
+      if (hasRequest && !updated.contains("'$requestSnake.dart'")) {
+        final importBlock =
+            "import 'package:$pkg/features/$feature/data/models/$requestSnake.dart';\n"
+            "import 'package:$pkg/features/$feature/data/models/$responseSnake.dart';";
+        updated = updated.replaceFirst('\nabstract', '\n$importBlock\n\nabstract');
+      } else if (!hasRequest && !updated.contains("'$responseSnake.dart'")) {
+        final importBlock =
+            "import 'package:$pkg/features/$feature/data/models/$responseSnake.dart';";
         updated = updated.replaceFirst('\nabstract', '\n$importBlock\n\nabstract');
       }
 
@@ -191,11 +200,15 @@ abstract class ${featurePascal}Repository {
   /// Streams [$responseClass] events from the shared WebSocket connection.
   Stream<Either<Failure, $responseClass>> $endpointCamel();
 '''
-          : '''
+          : (hasRequest
+              ? '''
   Future<Either<Failure, $responseClass>> $endpointCamel(
     $requestClass request,
   );
-''';
+'''
+              : '''
+  Future<Either<Failure, $responseClass>> $endpointCamel();
+''');
       return FileUtils.insertBeforeClassEnd(updated, newMethod);
     });
   }
@@ -212,6 +225,7 @@ abstract class ${featurePascal}Repository {
     required String requestSnake,
     required String responseSnake,
     required String endpointType,
+    bool hasRequest = true,
   }) async {
     final isWs = endpointType == 'websocket';
     final file = File(filePath);
@@ -238,12 +252,18 @@ class ${featurePascal}RepositoryImpl implements ${featurePascal}Repository {
     }
 
     await FileUtils.patchFile(filePath, (content) {
-      final importBlock =
-          "import 'package:$pkg/features/$feature/data/models/$requestSnake.dart';\n"
-          "import 'package:$pkg/features/$feature/data/models/$responseSnake.dart';";
-
       var updated = content;
-      if (!updated.contains("'$requestSnake.dart'")) {
+      if (hasRequest && !updated.contains("'$requestSnake.dart'")) {
+        final importBlock =
+            "import 'package:$pkg/features/$feature/data/models/$requestSnake.dart';\n"
+            "import 'package:$pkg/features/$feature/data/models/$responseSnake.dart';";
+        updated = updated.replaceFirst(
+          '\n@LazySingleton',
+          '\n$importBlock\n\n@LazySingleton',
+        );
+      } else if (!hasRequest && !updated.contains("'$responseSnake.dart'")) {
+        final importBlock =
+            "import 'package:$pkg/features/$feature/data/models/$responseSnake.dart';";
         updated = updated.replaceFirst(
           '\n@LazySingleton',
           '\n$importBlock\n\n@LazySingleton',
@@ -265,7 +285,8 @@ class ${featurePascal}RepositoryImpl implements ${featurePascal}Repository {
     }
   }
 '''
-          : '''
+          : (hasRequest
+              ? '''
   @override
   Future<Either<Failure, $responseClass>> $endpointCamel(
     $requestClass request,
@@ -285,7 +306,26 @@ class ${featurePascal}RepositoryImpl implements ${featurePascal}Repository {
       return Left(ServerFailure(e.message));
     }
   }
-''';
+'''
+              : '''
+  @override
+  Future<Either<Failure, $responseClass>> $endpointCamel() async {
+    try {
+      final result = await _datasource.$endpointCamel();
+      return Right(result);
+    } on UnAuthorizedException catch (e) {
+      return Left(UnAuthorizedFailure(e.message));
+    } on ForceUpdateException catch (e) {
+      return Left(ForceUpdateFailure(e.message));
+    } on MaintenanceException catch (e) {
+      return Left(MaintenanceFailure(e.message));
+    } on NetworkException catch (e) {
+      return Left(NetworkFailure(e.message));
+    } on AppException catch (e) {
+      return Left(ServerFailure(e.message));
+    }
+  }
+''');
       return FileUtils.insertBeforeClassEnd(updated, newMethod);
     });
   }
