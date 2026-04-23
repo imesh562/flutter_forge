@@ -33,6 +33,7 @@ final class DatasourceGenerator {
     required String method,
     required String path,
     required String endpointType,
+    bool hasRequest = true,
   }) async {
     final featurePascal = StringUtils.toPascalCase(feature);
     final endpointPascal = StringUtils.toPascalCase(endpointName);
@@ -68,6 +69,7 @@ final class DatasourceGenerator {
       method: method,
       path: path,
       endpointType: endpointType,
+      hasRequest: hasRequest,
     );
 
     await FileUtils.patchFile(filePath, (content) {
@@ -76,11 +78,18 @@ final class DatasourceGenerator {
       // Insert import lines before the @lazySingleton annotation so that
       // the annotation stays directly attached to the class declaration.
       var updated = content;
-      if (!updated.contains("'../models/$requestSnake.dart'")) {
+      final importAnchor = '\n@lazySingleton\nclass';
+      if (hasRequest && !updated.contains("'../models/$requestSnake.dart'")) {
         updated = updated.replaceFirst(
-          '\n@lazySingleton\nclass',
+          importAnchor,
           "\nimport '../models/$requestSnake.dart';\n"
               "import '../models/$responseSnake.dart';\n"
+              '\n@lazySingleton\nclass',
+        );
+      } else if (!hasRequest && !updated.contains("'../models/$responseSnake.dart'")) {
+        updated = updated.replaceFirst(
+          importAnchor,
+          "\nimport '../models/$responseSnake.dart';\n"
               '\n@lazySingleton\nclass',
         );
       }
@@ -126,6 +135,7 @@ class ${featurePascal}RemoteDatasource {
     required String method,
     required String path,
     required String endpointType,
+    bool hasRequest = true,
   }) {
     if (endpointType == 'websocket') {
       return '''
@@ -139,17 +149,10 @@ class ${featurePascal}RemoteDatasource {
     }
 
     final dioMethod = method.toLowerCase();
-    // GET and DELETE pass parameters as query params; others send a body.
-    final paramArg = (method == 'GET' || method == 'DELETE')
-        ? 'queryParameters: request.toJson()'
-        : 'data: request.toJson()';
 
     // Extract :param segments from the path and generate typed arguments.
     final pathParams = _extractPathParams(path);
     final pathParamArgs = pathParams.map((p) => 'String $p').join(', ');
-    final methodParams = pathParams.isEmpty
-        ? '$requestClass request'
-        : '$requestClass request, {${pathParamArgs.isEmpty ? '' : 'required $pathParamArgs'}}';
 
     // Replace :param → $param for Dart string interpolation.
     final interpolatedPath = path.replaceAllMapped(
@@ -157,6 +160,31 @@ class ${featurePascal}RemoteDatasource {
       (m) => '\${${m[1]}}',
     );
     final urlExpr = pathParams.isEmpty ? "'$path'" : "'$interpolatedPath'";
+
+    if (!hasRequest) {
+      final methodParams = pathParams.isEmpty
+          ? ''
+          : '{${pathParamArgs.isEmpty ? '' : 'required $pathParamArgs'}}';
+      final callArgs = pathParams.isEmpty ? '$urlExpr' : '$urlExpr,';
+      return '''
+
+  Future<$responseClass> $endpointCamel($methodParams) async {
+    final response = await _api.$dioMethod<Map<String, dynamic>>(
+      $callArgs
+    );
+    return $responseClass.fromJson(response.data!);
+  }
+''';
+    }
+
+    // GET and DELETE pass parameters as query params; others send a body.
+    final paramArg = (method == 'GET' || method == 'DELETE')
+        ? 'queryParameters: request.toJson()'
+        : 'data: request.toJson()';
+
+    final methodParams = pathParams.isEmpty
+        ? '$requestClass request'
+        : '$requestClass request, {${pathParamArgs.isEmpty ? '' : 'required $pathParamArgs'}}';
 
     return '''
 

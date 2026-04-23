@@ -1,0 +1,17 @@
+# Dart / Pub
+.dart_tool/
+.packages
+build/
+pubspec.lock
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Claude Code (machine-local)
+.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db

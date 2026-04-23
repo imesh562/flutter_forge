@@ -49,14 +49,19 @@ final class NetworkException extends AppException {
 }
 
 /// Maps a [dio.DioException] to the appropriate typed [AppException].
+/// Prefers the [message] field from the response body when present so that
+/// business-level error messages (e.g. "Invalid password.") are preserved
+/// regardless of HTTP status code.
 AppException mapHttpError(dio.DioException error) {
   final statusCode = error.response?.statusCode;
+  final body = error.response?.data;
+  final serverMessage = body is Map ? body['message'] as String? : null;
   return switch (statusCode) {
-    401 || 403 || 407 => const UnAuthorizedException('Unauthorized'),
-    426 => const ForceUpdateException('App update required'),
-    503 => const MaintenanceException('Service under maintenance'),
+    401 || 403 || 407 => UnAuthorizedException(serverMessage ?? 'Unauthorized'),
+    426 => ForceUpdateException(serverMessage ?? 'App update required'),
+    503 => MaintenanceException(serverMessage ?? 'Service under maintenance'),
     _ when statusCode != null =>
-      ServerException('Server error: $statusCode'),
+      ServerException(serverMessage ?? 'Server error: $statusCode'),
     _ => NetworkException(error.message ?? 'Network error'),
   };
 }

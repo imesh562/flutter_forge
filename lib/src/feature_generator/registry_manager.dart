@@ -211,7 +211,7 @@ final class RegistryManager {
       final blocs = List<String>.from(f['blocs'] as List<dynamic>? ?? []);
       for (final bloc in blocs) {
         final snake = StringUtils.toSnakeCase(bloc);
-        final dir = p.join(_projectPath, 'lib', 'features', feature, 'presentation');
+        final dir = p.join(_projectPath, 'lib', 'features', feature, 'presentation', 'blocs', snake);
         for (final file in ['${snake}_bloc.dart', '${snake}_event.dart', '${snake}_state.dart']) {
           if (!File(p.join(dir, file)).existsSync()) {
             warnings.add('⚠ Registry lists BLoC "$bloc" for feature "$feature" '
@@ -224,7 +224,7 @@ final class RegistryManager {
       final cubits = List<String>.from(f['cubits'] as List<dynamic>? ?? []);
       for (final cubit in cubits) {
         final snake = StringUtils.toSnakeCase(cubit);
-        final dir = p.join(_projectPath, 'lib', 'features', feature, 'presentation');
+        final dir = p.join(_projectPath, 'lib', 'features', feature, 'presentation', 'cubits', snake);
         for (final file in ['${snake}_cubit.dart', '${snake}_state.dart']) {
           if (!File(p.join(dir, file)).existsSync()) {
             warnings.add('⚠ Registry lists Cubit "$cubit" for feature "$feature" '

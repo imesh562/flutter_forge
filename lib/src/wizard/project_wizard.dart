@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_forge/src/models/flavor_config.dart';
@@ -6,10 +8,21 @@ import 'package:flutter_forge/src/utils/string_utils.dart';
 
 /// Drives the interactive setup wizard and returns a validated [ProjectConfig].
 final class ProjectWizard {
+  // Async stdin reader — avoids blocking the event loop on Windows where
+  // stdin.readLineSync() prevents pending stdout writes from being flushed.
+  final _lines = StreamIterator<String>(
+    stdin.transform(utf8.decoder).transform(const LineSplitter()),
+  );
+
+  Future<String> _readLine() async {
+    await _lines.moveNext();
+    return _lines.current;
+  }
+
   Future<ProjectConfig> collect() async {
     _printHeader();
 
-    final projectName = _prompt(
+    final projectName = await _prompt(
       'Project name (snake_case)',
       validate: (v) {
         if (!StringUtils.isSnakeCase(v)) {
@@ -19,9 +32,9 @@ final class ProjectWizard {
       },
     );
 
-    final appDisplayName = _prompt('App display name');
+    final appDisplayName = await _prompt('App display name');
 
-    final outputDirectory = _prompt(
+    final outputDirectory = await _prompt(
       'Output directory (absolute path where the project folder will be created)',
       defaultValue: Directory.current.path,
       validate: (v) {
@@ -30,31 +43,31 @@ final class ProjectWizard {
       },
     );
 
-    final useFirebase = _promptYesNo('Integrate Firebase?');
+    final useFirebase = await _promptYesNo('Integrate Firebase?');
     final useFlavors =
-        _promptYesNo('Use multiple flavors (DEV / STG / PRE_PROD / PROD)?');
+        await _promptYesNo('Use multiple flavors (DEV / STG / PRE_PROD / PROD)?');
 
     List<FlavorSettings> flavorSettings;
 
     if (useFlavors) {
       // Collect DEV first to derive org, then reuse as hint for the rest.
       _printSection('DEV flavor');
-      final devSettings = _collectFlavorSettings(Flavor.dev);
+      final devSettings = await _collectFlavorSettings(Flavor.dev);
 
       final orgIdentifier = StringUtils.extractOrg(devSettings.bundleId);
       stdout.writeln('  → Derived org identifier: $orgIdentifier');
 
       _printSection('STG flavor');
       final stgSettings =
-          _collectFlavorSettings(Flavor.stg, orgHint: orgIdentifier);
+          await _collectFlavorSettings(Flavor.stg, orgHint: orgIdentifier);
 
       _printSection('PRE_PROD flavor');
       final preProdSettings =
-          _collectFlavorSettings(Flavor.preProd, orgHint: orgIdentifier);
+          await _collectFlavorSettings(Flavor.preProd, orgHint: orgIdentifier);
 
       _printSection('PROD flavor');
       final prodSettings =
-          _collectFlavorSettings(Flavor.prod, orgHint: orgIdentifier);
+          await _collectFlavorSettings(Flavor.prod, orgHint: orgIdentifier);
 
       flavorSettings = [devSettings, stgSettings, preProdSettings, prodSettings];
 
@@ -70,15 +83,19 @@ final class ProjectWizard {
       );
 
       _printSummary(config);
-      final proceed = _promptYesNo('Proceed with generation?');
+      final proceed = await _promptYesNo('Proceed with generation?');
       if (!proceed) {
         stdout.writeln('\nAborted.');
+        await _lines.cancel();
         exit(0);
       }
+      // Cancel the stdin subscription so the process can exit cleanly after
+      // the generator finishes.
+      await _lines.cancel();
       return config;
     } else {
       _printSection('Project settings');
-      final settings = _collectSingleSettings();
+      final settings = await _collectSingleSettings();
       final orgIdentifier = StringUtils.extractOrg(settings.bundleId);
       stdout.writeln('  → Derived org identifier: $orgIdentifier');
 
@@ -95,21 +112,28 @@ final class ProjectWizard {
       );
 
       _printSummary(config);
-      final proceed = _promptYesNo('Proceed with generation?');
+      final proceed = await _promptYesNo('Proceed with generation?');
       if (!proceed) {
         stdout.writeln('\nAborted.');
+        await _lines.cancel();
         exit(0);
       }
+      // Cancel the stdin subscription so the process can exit cleanly after
+      // the generator finishes.
+      await _lines.cancel();
       return config;
     }
   }
 
   // ── Flavor settings collection ────────────────────────────────────────────
 
-  FlavorSettings _collectFlavorSettings(Flavor flavor, {String? orgHint}) {
+  Future<FlavorSettings> _collectFlavorSettings(
+    Flavor flavor, {
+    String? orgHint,
+  }) async {
     final label = flavor.label;
 
-    final bundleId = _prompt(
+    final bundleId = await _prompt(
       '$label bundle / package ID',
       hint: orgHint != null ? '$orgHint.myapp.${flavor.envName}' : null,
       validate: (v) {
@@ -120,19 +144,19 @@ final class ProjectWizard {
       },
     );
 
-    final baseUrl = _prompt(
+    final baseUrl = await _prompt(
       '$label base API URL (https://...)',
       validate: (v) =>
           StringUtils.isValidUrl(v) ? null : 'Must be a valid https:// URL.',
     );
 
-    final wsUrl = _prompt(
+    final wsUrl = await _prompt(
       '$label WebSocket URL (wss://...)',
       validate: (v) =>
           StringUtils.isValidWsUrl(v) ? null : 'Must be a valid wss:// URL.',
     );
 
-    final mixpanelToken = _promptOptional('  Mixpanel token for $label');
+    final mixpanelToken = await _promptOptional('  Mixpanel token for $label');
 
     return FlavorSettings(
       flavor: flavor,
@@ -143,8 +167,8 @@ final class ProjectWizard {
     );
   }
 
-  FlavorSettings _collectSingleSettings() {
-    final bundleId = _prompt(
+  Future<FlavorSettings> _collectSingleSettings() async {
+    final bundleId = await _prompt(
       'Bundle / package ID',
       validate: (v) {
         if (!StringUtils.isValidBundleId(v)) {
@@ -154,19 +178,19 @@ final class ProjectWizard {
       },
     );
 
-    final baseUrl = _prompt(
+    final baseUrl = await _prompt(
       'Base API URL (https://...)',
       validate: (v) =>
           StringUtils.isValidUrl(v) ? null : 'Must be a valid https:// URL.',
     );
 
-    final wsUrl = _prompt(
+    final wsUrl = await _prompt(
       'WebSocket URL (wss://...)',
       validate: (v) =>
           StringUtils.isValidWsUrl(v) ? null : 'Must be a valid wss:// URL.',
     );
 
-    final mixpanelToken = _promptOptional('Mixpanel token');
+    final mixpanelToken = await _promptOptional('Mixpanel token');
 
     return FlavorSettings(
       flavor: Flavor.prod,
@@ -179,17 +203,17 @@ final class ProjectWizard {
 
   // ── Prompt helpers ─────────────────────────────────────────────────────────
 
-  String _prompt(
+  Future<String> _prompt(
     String label, {
     String? defaultValue,
     String? hint,
     String? Function(String)? validate,
-  }) {
+  }) async {
     while (true) {
       final displayHint =
           hint != null ? ' [$hint]' : (defaultValue != null ? ' [$defaultValue]' : '');
       stdout.write('  $label$displayHint: ');
-      final raw = stdin.readLineSync()?.trim() ?? '';
+      final raw = (await _readLine()).trim();
       final value = raw.isEmpty ? (defaultValue ?? '') : raw;
 
       if (value.isEmpty) {
@@ -208,16 +232,16 @@ final class ProjectWizard {
   }
 
   /// Returns null when the user presses Enter without input.
-  String? _promptOptional(String label) {
+  Future<String?> _promptOptional(String label) async {
     stdout.write('  $label (press Enter to skip): ');
-    final raw = stdin.readLineSync()?.trim() ?? '';
+    final raw = (await _readLine()).trim();
     return raw.isEmpty ? null : raw;
   }
 
-  bool _promptYesNo(String label, {bool defaultYes = true}) {
+  Future<bool> _promptYesNo(String label, {bool defaultYes = true}) async {
     final options = defaultYes ? '[Y/n]' : '[y/N]';
     stdout.write('\n  $label $options: ');
-    final raw = stdin.readLineSync()?.trim().toLowerCase() ?? '';
+    final raw = (await _readLine()).trim().toLowerCase();
     if (raw.isEmpty) return defaultYes;
     return raw == 'y' || raw == 'yes';
   }

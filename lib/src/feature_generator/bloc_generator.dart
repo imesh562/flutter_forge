@@ -21,11 +21,11 @@ final class BlocGenerator {
     final snake = StringUtils.toSnakeCase(blocName);
     final featurePascal = StringUtils.toPascalCase(feature);
     final featureSnake = StringUtils.toSnakeCase(feature);
-    final dir = p.join(projectPath, 'lib/features/$feature/presentation');
+    final dir = p.join(projectPath, 'lib/features/$feature/presentation/blocs/$snake');
 
     final testDir = p.join(
       projectPath,
-      'test/features/$feature/presentation',
+      'test/features/$feature/presentation/blocs/$snake',
     );
 
     await Future.wait([
@@ -62,11 +62,11 @@ final class BlocGenerator {
     final snake = StringUtils.toSnakeCase(cubitName);
     final featurePascal = StringUtils.toPascalCase(feature);
     final featureSnake = StringUtils.toSnakeCase(feature);
-    final dir = p.join(projectPath, 'lib/features/$feature/presentation');
+    final dir = p.join(projectPath, 'lib/features/$feature/presentation/cubits/$snake');
 
     final testDir = p.join(
       projectPath,
-      'test/features/$feature/presentation',
+      'test/features/$feature/presentation/cubits/$snake',
     );
 
     await Future.wait([
@@ -99,7 +99,7 @@ final class BlocGenerator {
     required String feature,
     required String blocName,
     required String endpointName,
-    required String requestClass,
+    required String? requestClass,
     required String responseClass,
     required String endpointType, // 'rest' | 'websocket'
   }) async {
@@ -109,7 +109,7 @@ final class BlocGenerator {
     final snake = StringUtils.toSnakeCase(blocName);
     final requestSnake = '${StringUtils.toSnakeCase(endpointName)}_request';
     final responseSnake = '${StringUtils.toSnakeCase(endpointName)}_response';
-    final dir = p.join(projectPath, 'lib/features/$feature/presentation');
+    final dir = p.join(projectPath, 'lib/features/$feature/presentation/blocs/$snake');
 
     final eventsFile = p.join(dir, '${snake}_event.dart');
     final statesFile = p.join(dir, '${snake}_state.dart');
@@ -161,7 +161,7 @@ final class BlocGenerator {
     required String feature,
     required String cubitName,
     required String endpointName,
-    required String requestClass,
+    required String? requestClass,
     required String responseClass,
     required String endpointType, // 'rest' | 'websocket'
   }) async {
@@ -171,7 +171,7 @@ final class BlocGenerator {
     final snake = StringUtils.toSnakeCase(cubitName);
     final requestSnake = '${StringUtils.toSnakeCase(endpointName)}_request';
     final responseSnake = '${StringUtils.toSnakeCase(endpointName)}_response';
-    final dir = p.join(projectPath, 'lib/features/$feature/presentation');
+    final dir = p.join(projectPath, 'lib/features/$feature/presentation/cubits/$snake');
 
     final cubitFile = p.join(dir, '${snake}_cubit.dart');
     final statesFile = p.join(dir, '${snake}_state.dart');
@@ -202,6 +202,88 @@ final class BlocGenerator {
         requestSnake: requestSnake,
         responseSnake: responseSnake,
         endpointType: endpointType,
+      ),
+    ]);
+  }
+
+  // ── Standalone bundle operations (not tied to an endpoint) ─────────────────
+
+  Future<void> addCustomEventToBloc({
+    required String projectPath,
+    required String feature,
+    required String blocName,
+    required String actionName,
+    String? requestType,
+    String? responseType,
+  }) async {
+    final blocPascal = StringUtils.toPascalCase(blocName);
+    final actionPascal = StringUtils.toPascalCase(actionName);
+    final actionCamel = StringUtils.toCamelCase(actionName);
+    final snake = StringUtils.toSnakeCase(blocName);
+    final dir = p.join(projectPath, 'lib/features/$feature/presentation/blocs/$snake');
+
+    final eventsFile = p.join(dir, '${snake}_event.dart');
+    final statesFile = p.join(dir, '${snake}_state.dart');
+    final blocFile = p.join(dir, '${snake}_bloc.dart');
+
+    for (final path in [eventsFile, statesFile, blocFile]) {
+      if (!File(path).existsSync()) {
+        throw StateError(
+          'BLoC file not found: $path\n'
+          'Create the BLoC first.',
+        );
+      }
+    }
+
+    await Future.wait([
+      _addStandaloneEvent(eventsFile, actionPascal, blocPascal, requestType),
+      _addStandaloneBlocState(statesFile, actionPascal, blocPascal, responseType),
+      _addStandaloneBlocHandler(
+        filePath: blocFile,
+        actionPascal: actionPascal,
+        actionCamel: actionCamel,
+        blocPascal: blocPascal,
+        requestType: requestType,
+        responseType: responseType,
+      ),
+    ]);
+  }
+
+  Future<void> addCustomMethodToCubit({
+    required String projectPath,
+    required String feature,
+    required String cubitName,
+    required String actionName,
+    String? requestType,
+    String? responseType,
+  }) async {
+    final cubitPascal = StringUtils.toPascalCase(cubitName);
+    final actionPascal = StringUtils.toPascalCase(actionName);
+    final actionCamel = StringUtils.toCamelCase(actionName);
+    final snake = StringUtils.toSnakeCase(cubitName);
+    final dir = p.join(projectPath, 'lib/features/$feature/presentation/cubits/$snake');
+
+    final cubitFile = p.join(dir, '${snake}_cubit.dart');
+    final statesFile = p.join(dir, '${snake}_state.dart');
+
+    for (final path in [cubitFile, statesFile]) {
+      if (!File(path).existsSync()) {
+        throw StateError(
+          'Cubit file not found: $path\n'
+          'Create the Cubit first.',
+        );
+      }
+    }
+
+    await Future.wait([
+      _addStandaloneCubitState(statesFile, actionPascal, cubitPascal, responseType),
+      _addStandaloneCubitMethod(
+        filePath: cubitFile,
+        actionPascal: actionPascal,
+        actionCamel: actionCamel,
+        cubitPascal: cubitPascal,
+        requestType: requestType,
+        responseType: responseType,
       ),
     ]);
   }
@@ -363,7 +445,7 @@ final class ${pascal}Loading extends ${pascal}State with AppLoadingState {
   Future<void> _addEvent(
     String filePath,
     String endpointPascal,
-    String requestClass,
+    String? requestClass,
     String blocPascal,
     String endpointType,
   ) async {
@@ -377,13 +459,20 @@ final class ${pascal}Loading extends ${pascal}State with AppLoadingState {
             '  @override\n'
             '  List<Object?> get props => const [];\n'
             '}\n\n';
-      } else {
+      } else if (requestClass != null) {
         newEvent =
             'final class ${endpointPascal}Started extends ${blocPascal}Event {\n'
             '  const ${endpointPascal}Started(this.request);\n'
             '  final $requestClass request;\n'
             '  @override\n'
             '  List<Object?> get props => [request];\n'
+            '}\n\n';
+      } else {
+        newEvent =
+            'final class ${endpointPascal}Started extends ${blocPascal}Event {\n'
+            '  const ${endpointPascal}Started();\n'
+            '  @override\n'
+            '  List<Object?> get props => const [];\n'
             '}\n\n';
       }
       return content.replaceFirst(
@@ -458,7 +547,7 @@ final class ${pascal}Loading extends ${pascal}State with AppLoadingState {
     required String endpointPascal,
     required String endpointCamel,
     required String blocPascal,
-    required String requestClass,
+    required String? requestClass,
     required String responseClass,
     required String requestSnake,
     required String responseSnake,
@@ -467,13 +556,19 @@ final class ${pascal}Loading extends ${pascal}State with AppLoadingState {
     await FileUtils.patchFile(filePath, (content) {
       _assertSentinel(content, _handlerSentinel, filePath);
 
-      // Add model imports before the first `part` directive if not present.
       var updated = content;
-      if (!updated.contains("'../data/models/$requestSnake.dart'")) {
+      if (requestClass != null &&
+          !updated.contains("'../../../data/models/$requestSnake.dart'")) {
         updated = updated.replaceFirst(
           '\npart ',
-          "\nimport '../data/models/$requestSnake.dart';"
-          "\nimport '../data/models/$responseSnake.dart';\n\npart ",
+          "\nimport '../../../data/models/$requestSnake.dart';"
+          "\nimport '../../../data/models/$responseSnake.dart';\n\npart ",
+        );
+      } else if (requestClass == null &&
+          !updated.contains("'../../../data/models/$responseSnake.dart'")) {
+        updated = updated.replaceFirst(
+          '\npart ',
+          "\nimport '../../../data/models/$responseSnake.dart';\n\npart ",
         );
       }
 
@@ -481,7 +576,6 @@ final class ${pascal}Loading extends ${pascal}State with AppLoadingState {
       final String handler;
 
       if (endpointType == 'websocket') {
-        // Inject fpdart import so Either is resolvable in the handler.
         if (!updated.contains("'package:fpdart/fpdart.dart'")) {
           updated = updated.replaceFirst(
             '\npart ',
@@ -504,7 +598,7 @@ final class ${pascal}Loading extends ${pascal}State with AppLoadingState {
             '      ),\n'
             '    );\n'
             '  }\n';
-      } else {
+      } else if (requestClass != null) {
         registration =
             'on<${endpointPascal}Started>(_on$endpointPascal);';
         handler =
@@ -514,6 +608,21 @@ final class ${pascal}Loading extends ${pascal}State with AppLoadingState {
             '  ) async {\n'
             '    emit(const ${blocPascal}Loading());\n'
             '    final result = await _repository.$endpointCamel(event.request);\n'
+            '    result.fold(\n'
+            '      (failure) => emit(${endpointPascal}Failure(failure)),\n'
+            '      (data) => emit(${endpointPascal}Success(data)),\n'
+            '    );\n'
+            '  }\n';
+      } else {
+        registration =
+            'on<${endpointPascal}Started>(_on$endpointPascal);';
+        handler =
+            '\n  Future<void> _on$endpointPascal(\n'
+            '    ${endpointPascal}Started event,\n'
+            '    Emitter<${blocPascal}State> emit,\n'
+            '  ) async {\n'
+            '    emit(const ${blocPascal}Loading());\n'
+            '    final result = await _repository.$endpointCamel();\n'
             '    result.fold(\n'
             '      (failure) => emit(${endpointPascal}Failure(failure)),\n'
             '      (data) => emit(${endpointPascal}Success(data)),\n'
@@ -592,7 +701,7 @@ final class ${pascal}Loading extends ${pascal}State with AppLoadingState {
     required String endpointPascal,
     required String endpointCamel,
     required String cubitPascal,
-    required String requestClass,
+    required String? requestClass,
     required String responseClass,
     required String requestSnake,
     required String responseSnake,
@@ -601,19 +710,24 @@ final class ${pascal}Loading extends ${pascal}State with AppLoadingState {
     await FileUtils.patchFile(filePath, (content) {
       _assertSentinel(content, _handlerSentinel, filePath);
 
-      // Add model imports before the first `part` directive if not present.
       var updated = content;
-      if (!updated.contains("'../data/models/$requestSnake.dart'")) {
+      if (requestClass != null &&
+          !updated.contains("'../../../data/models/$requestSnake.dart'")) {
         updated = updated.replaceFirst(
           '\npart ',
-          "\nimport '../data/models/$requestSnake.dart';"
-          "\nimport '../data/models/$responseSnake.dart';\n\npart ",
+          "\nimport '../../../data/models/$requestSnake.dart';"
+          "\nimport '../../../data/models/$responseSnake.dart';\n\npart ",
+        );
+      } else if (requestClass == null &&
+          !updated.contains("'../../../data/models/$responseSnake.dart'")) {
+        updated = updated.replaceFirst(
+          '\npart ',
+          "\nimport '../../../data/models/$responseSnake.dart';\n\npart ",
         );
       }
 
       final String newMethod;
       if (endpointType == 'websocket') {
-        // Inject fpdart import so Either is resolvable in the method.
         if (!updated.contains("'package:fpdart/fpdart.dart'")) {
           updated = updated.replaceFirst(
             '\npart ',
@@ -624,13 +738,14 @@ final class ${pascal}Loading extends ${pascal}State with AppLoadingState {
             '  Future<void> $endpointCamel() async {\n'
             '    emit(const ${endpointPascal}WebSocketConnecting());\n'
             '    await for (final either in _repository.$endpointCamel()) {\n'
+            '      if (isClosed) break;\n'
             '      either.fold(\n'
             '        (failure) => emit(${endpointPascal}Failure(failure)),\n'
             '        (data) => emit(${endpointPascal}Success(data)),\n'
             '      );\n'
             '    }\n'
             '  }\n\n';
-      } else {
+      } else if (requestClass != null) {
         newMethod =
             '  Future<void> $endpointCamel($requestClass request) async {\n'
             '    emit(const ${cubitPascal}Loading());\n'
@@ -640,8 +755,204 @@ final class ${pascal}Loading extends ${pascal}State with AppLoadingState {
             '      (data) => emit(${endpointPascal}Success(data)),\n'
             '    );\n'
             '  }\n\n';
+      } else {
+        newMethod =
+            '  Future<void> $endpointCamel() async {\n'
+            '    emit(const ${cubitPascal}Loading());\n'
+            '    final result = await _repository.$endpointCamel();\n'
+            '    result.fold(\n'
+            '      (failure) => emit(${endpointPascal}Failure(failure)),\n'
+            '      (data) => emit(${endpointPascal}Success(data)),\n'
+            '    );\n'
+            '  }\n\n';
       }
       return updated.replaceFirst(
+        _handlerSentinel,
+        '$_handlerSentinel\n$newMethod',
+      );
+    });
+  }
+
+  // ── Standalone bundle helpers ─────────────────────────────────────────────
+
+  Future<void> _addStandaloneEvent(
+    String filePath,
+    String actionPascal,
+    String blocPascal,
+    String? requestType,
+  ) async {
+    await FileUtils.patchFile(filePath, (content) {
+      _assertSentinel(content, _eventsSentinel, filePath);
+      final String newEvent;
+      if (requestType != null && requestType.isNotEmpty) {
+        newEvent =
+            'final class ${actionPascal}Started extends ${blocPascal}Event {\n'
+            '  const ${actionPascal}Started(this.request);\n'
+            '  final $requestType request;\n'
+            '  @override\n'
+            '  List<Object?> get props => [request];\n'
+            '}\n\n';
+      } else {
+        newEvent =
+            'final class ${actionPascal}Started extends ${blocPascal}Event {\n'
+            '  const ${actionPascal}Started();\n'
+            '  @override\n'
+            '  List<Object?> get props => const [];\n'
+            '}\n\n';
+      }
+      return content.replaceFirst(_eventsSentinel, '$_eventsSentinel\n$newEvent');
+    });
+  }
+
+  Future<void> _addStandaloneBlocState(
+    String filePath,
+    String actionPascal,
+    String blocPascal,
+    String? responseType,
+  ) async {
+    await FileUtils.patchFile(filePath, (content) {
+      _assertSentinel(content, _stateSentinel, filePath);
+      final String successState;
+      if (responseType != null && responseType.isNotEmpty) {
+        successState =
+            'final class ${actionPascal}Success extends ${blocPascal}State {\n'
+            '  const ${actionPascal}Success(this.data);\n'
+            '  final $responseType data;\n'
+            '  @override\n'
+            '  List<Object?> get props => [data];\n'
+            '}\n\n';
+      } else {
+        successState =
+            'final class ${actionPascal}Success extends ${blocPascal}State {\n'
+            '  const ${actionPascal}Success();\n'
+            '  @override\n'
+            '  List<Object?> get props => const [];\n'
+            '}\n\n';
+      }
+      final failureState =
+          'final class ${actionPascal}Failure extends ${blocPascal}State with FailureState {\n'
+          '  const ${actionPascal}Failure(this.failure);\n'
+          '  @override\n'
+          '  final Failure failure;\n'
+          '  @override\n'
+          '  List<Object?> get props => [failure];\n'
+          '}\n\n';
+      return content.replaceFirst(
+        _stateSentinel,
+        '$_stateSentinel\n$successState$failureState',
+      );
+    });
+  }
+
+  Future<void> _addStandaloneBlocHandler({
+    required String filePath,
+    required String actionPascal,
+    required String actionCamel,
+    required String blocPascal,
+    String? requestType,
+    String? responseType,
+  }) async {
+    await FileUtils.patchFile(filePath, (content) {
+      _assertSentinel(content, _handlerSentinel, filePath);
+      final registration = 'on<${actionPascal}Started>(_on$actionPascal);';
+      final requestParam = requestType != null && requestType.isNotEmpty
+          ? 'event.request'
+          : '';
+      final successArg = responseType != null && responseType.isNotEmpty
+          ? 'data'
+          : '';
+      final handler =
+          '\n  Future<void> _on$actionPascal(\n'
+          '    ${actionPascal}Started event,\n'
+          '    Emitter<${blocPascal}State> emit,\n'
+          '  ) async {\n'
+          '    emit(const ${blocPascal}Loading());\n'
+          '    // TODO: replace with the actual repository call\n'
+          '    // final result = await _repository.$actionCamel($requestParam);\n'
+          '    // result.fold(\n'
+          '    //   (failure) => emit(${actionPascal}Failure(failure)),\n'
+          '    //   (data) => emit(${actionPascal}Success($successArg)),\n'
+          '    // );\n'
+          '  }\n';
+      return content
+          .replaceFirst(
+            _handlerSentinel,
+            '$_handlerSentinel\n    $registration',
+          )
+          .replaceFirst(RegExp(r'\}\s*$'), '$handler}\n');
+    });
+  }
+
+  Future<void> _addStandaloneCubitState(
+    String filePath,
+    String actionPascal,
+    String cubitPascal,
+    String? responseType,
+  ) async {
+    await FileUtils.patchFile(filePath, (content) {
+      _assertSentinel(content, _stateSentinel, filePath);
+      final String successState;
+      if (responseType != null && responseType.isNotEmpty) {
+        successState =
+            'final class ${actionPascal}Success extends ${cubitPascal}State {\n'
+            '  const ${actionPascal}Success(this.data);\n'
+            '  final $responseType data;\n'
+            '  @override\n'
+            '  List<Object?> get props => [data];\n'
+            '}\n\n';
+      } else {
+        successState =
+            'final class ${actionPascal}Success extends ${cubitPascal}State {\n'
+            '  const ${actionPascal}Success();\n'
+            '  @override\n'
+            '  List<Object?> get props => const [];\n'
+            '}\n\n';
+      }
+      final failureState =
+          'final class ${actionPascal}Failure extends ${cubitPascal}State with FailureState {\n'
+          '  const ${actionPascal}Failure(this.failure);\n'
+          '  @override\n'
+          '  final Failure failure;\n'
+          '  @override\n'
+          '  List<Object?> get props => [failure];\n'
+          '}\n\n';
+      return content.replaceFirst(
+        _stateSentinel,
+        '$_stateSentinel\n$successState$failureState',
+      );
+    });
+  }
+
+  Future<void> _addStandaloneCubitMethod({
+    required String filePath,
+    required String actionPascal,
+    required String actionCamel,
+    required String cubitPascal,
+    String? requestType,
+    String? responseType,
+  }) async {
+    await FileUtils.patchFile(filePath, (content) {
+      _assertSentinel(content, _handlerSentinel, filePath);
+      final requestParam = requestType != null && requestType.isNotEmpty
+          ? '$requestType request'
+          : '';
+      final repositoryCallArg = requestType != null && requestType.isNotEmpty
+          ? 'request'
+          : '';
+      final successArg = responseType != null && responseType.isNotEmpty
+          ? 'data'
+          : '';
+      final newMethod =
+          '  Future<void> $actionCamel($requestParam) async {\n'
+          '    emit(const ${cubitPascal}Loading());\n'
+          '    // TODO: replace with the actual repository call\n'
+          '    // final result = await _repository.$actionCamel($repositoryCallArg);\n'
+          '    // result.fold(\n'
+          '    //   (failure) => emit(${actionPascal}Failure(failure)),\n'
+          '    //   (data) => emit(${actionPascal}Success($successArg)),\n'
+          '    // );\n'
+          '  }\n\n';
+      return content.replaceFirst(
         _handlerSentinel,
         '$_handlerSentinel\n$newMethod',
       );
@@ -667,7 +978,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:$pkg/features/$feature/domain/repositories/${featureSnake}_repository.dart';
-import 'package:$pkg/features/$feature/presentation/${snake}_bloc.dart';
+import 'package:$pkg/features/$feature/presentation/blocs/$snake/${snake}_bloc.dart';
 
 class _Mock${featurePascal}Repository extends Mock
     implements ${featurePascal}Repository {}
@@ -727,7 +1038,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:$pkg/features/$feature/domain/repositories/${featureSnake}_repository.dart';
-import 'package:$pkg/features/$feature/presentation/${snake}_cubit.dart';
+import 'package:$pkg/features/$feature/presentation/cubits/$snake/${snake}_cubit.dart';
 
 class _Mock${featurePascal}Repository extends Mock
     implements ${featurePascal}Repository {}

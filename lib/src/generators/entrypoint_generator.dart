@@ -133,6 +133,7 @@ $firebaseImports$analyticsImport
 import 'package:$pkg/flavors/flavor.dart';
 import 'package:$pkg/flavors/flavor_config.dart';
 import 'package:$pkg/navigation/app_router.dart';$notificationProviderImport
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:$pkg/shared/blocs/theme_cubit.dart';
 import 'package:$pkg/shared/theme/app_theme.dart';
 
@@ -154,7 +155,7 @@ $firebaseInit
   runApp(
     MultiProvider(
       providers: [
-        BlocProvider(create: (_) => ThemeCubit()),$notificationProvider
+        BlocProvider(create: (_) => ThemeCubit(getIt<SharedPreferences>())),$notificationProvider
       ],
       child: const _App(),
     ),
@@ -234,6 +235,7 @@ import 'package:provider/provider.dart';
 $firebaseImports$analyticsImport
 import 'package:$pkg/flavors/flavor_config.dart';
 import 'package:$pkg/navigation/app_router.dart';$notificationProviderImport
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:$pkg/shared/blocs/theme_cubit.dart';
 import 'package:$pkg/shared/theme/app_theme.dart';
 
@@ -253,7 +255,7 @@ $firebaseInit
   runApp(
     MultiProvider(
       providers: [
-        BlocProvider(create: (_) => ThemeCubit()),$notificationProvider
+        BlocProvider(create: (_) => ThemeCubit(getIt<SharedPreferences>())),$notificationProvider
       ],
       child: const _App(),
     ),
