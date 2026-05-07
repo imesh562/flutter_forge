@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter_forge/src/models/flavor_config.dart';
 import 'package:flutter_forge/src/models/project_config.dart';
+import 'package:flutter_forge/src/utils/string_utils.dart';
 import 'package:path/path.dart' as p;
 
 /// Adds per-flavor Xcode build configurations and schemes for `--flavor` support.
@@ -434,10 +435,14 @@ final class IosGenerator {
     final file = File(path);
     if (!file.existsSync()) return;
 
-    // flutter create sets bundle ID to `<org>.<projectName>`.
-    // Replace the trailing project-name segment with "app".
-    final oldId = '${config.orgIdentifier}.${config.projectName}';
-    final newId = '${config.orgIdentifier}.app';
+    // flutter create converts the snake_case project name to camelCase for the
+    // iOS bundle ID (e.g. sync_bridge → com.foo.syncBridge), so match against
+    // the camelCase form. Use the user-specified prod bundle ID as the target.
+    final camelName = StringUtils.toCamelCase(config.projectName);
+    final oldId = '${config.orgIdentifier}.$camelName';
+    final newId = config.useFlavors
+        ? config.settingsFor(Flavor.prod).bundleId
+        : config.flavorSettings.first.bundleId;
 
     var content = file.readAsStringSync();
     content = content

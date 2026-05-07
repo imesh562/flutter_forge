@@ -15,7 +15,10 @@ final class ProjectWizard {
   );
 
   Future<String> _readLine() async {
-    await _lines.moveNext();
+    if (!await _lines.moveNext()) {
+      stderr.writeln('\n✖ Input stream closed unexpectedly. Aborting.');
+      exit(1);
+    }
     return _lines.current;
   }
 
