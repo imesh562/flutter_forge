@@ -39,14 +39,26 @@ Examples:
     return;
   }
 
-  final projectPath = (args.isNotEmpty && args.first != '--help' && args.first != '-h')
+  if (!await ProcessUtils.isAvailable('dart')) {
+    stderr.writeln(
+      '✖ dart not found in PATH.\n'
+      '  Install the Flutter/Dart SDK and add its bin directory to your PATH.\n'
+      '  https://docs.flutter.dev/get-started/install',
+    );
+    exit(1);
+  }
+
+  // If no explicit path is given, walk up the directory tree from the current
+  // working directory to find the flutter_forge project root. This lets users
+  // run the command from any subdirectory inside the project.
+  final projectPath = args.isNotEmpty
       ? args.first
-      : Directory.current.path;
+      : _findProjectRoot(Directory.current.path);
 
   if (!RegistryManager.registryExists(projectPath)) {
     stderr.writeln(
       '✖ codegen_registry.json not found in: $projectPath\n'
-      '  Run this command from the root of a flutter_forge project,\n'
+      '  Run this command from inside a flutter_forge project,\n'
       '  or pass the project path as the first argument:\n'
       '    dart pub global run flutter_forge:generate <path>',
     );
@@ -91,4 +103,18 @@ String _extractPackageName(String pubspecContent) {
     throw StateError('Could not determine package name from pubspec.yaml.');
   }
   return name;
+}
+
+/// Walks up the directory tree from [startPath] looking for a
+/// codegen_registry.json file that marks a flutter_forge project root.
+/// Returns [startPath] unchanged if no root is found (caller reports the error).
+String _findProjectRoot(String startPath) {
+  var dir = Directory(startPath);
+  while (true) {
+    if (RegistryManager.registryExists(dir.path)) return dir.path;
+    final parent = dir.parent;
+    if (parent.path == dir.path) break; // reached filesystem root
+    dir = parent;
+  }
+  return startPath;
 }

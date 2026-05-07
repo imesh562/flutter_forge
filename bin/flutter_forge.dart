@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_forge/src/project_generator.dart';
+import 'package:flutter_forge/src/utils/process_utils.dart';
 import 'package:flutter_forge/src/wizard/project_wizard.dart';
 
 Future<void> main(List<String> args) async {
@@ -28,6 +29,15 @@ Description:
 Run with no arguments to start the wizard.
 ''');
     return;
+  }
+
+  if (!await ProcessUtils.isAvailable('flutter')) {
+    stderr.writeln(
+      '✖ flutter not found in PATH.\n'
+      '  Install the Flutter SDK and add its bin directory to your PATH.\n'
+      '  https://docs.flutter.dev/get-started/install',
+    );
+    exit(1);
   }
 
   final config = await ProjectWizard().collect();

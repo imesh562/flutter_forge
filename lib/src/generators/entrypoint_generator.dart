@@ -204,7 +204,7 @@ import 'package:$pkg/core/di/injection.dart';''';
             : '';
 
     final mixpanelTokenLine = config.hasMixpanel
-        ? "\n    mixpanelToken: '${s.mixpanelToken}',"
+        ? "\n    mixpanelToken: ${s.mixpanelToken != null ? "'${s.mixpanelToken}'" : 'null'},"
         : '';
 
     final firebaseInit = config.useFirebase
