@@ -162,24 +162,44 @@ final class ColorAdder {
     // The color-value pattern (`$n: Color(0x...)`) matches in BOTH the light
     // and dark blocks, so replaceAll is used there; all other patterns appear
     // exactly once and use replaceFirst.
+    //
+    // Every removal is verified — a pattern that doesn't match (e.g. because
+    // formatting drifted, or the file was hand-edited) throws instead of
+    // silently leaving that one line behind while every other line is
+    // removed, which would leave AppColorScheme half-updated and likely
+    // non-compiling (nothing is written to disk until every pattern has been
+    // confirmed to match).
     final n = RegExp.escape(name);
-    final singlePatterns = [
-      RegExp('    required this\\.$n,\\n'),
-      RegExp('  final Color $n;\\n'),
-      RegExp('    Color\\? $n,\\n'),
-      RegExp('        $n: $n \\?\\? this\\.$n,\\n'),
-      RegExp('      $n: Color\\.lerp\\($n, other\\.$n, t\\)!,\\n'),
-    ];
+    final singlePatterns = <String, RegExp>{
+      'constructor parameter': RegExp('    required this\\.$n,\\n'),
+      'field declaration': RegExp('  final Color $n;\\n'),
+      'copyWith parameter': RegExp('    Color\\? $n,\\n'),
+      'copyWith body': RegExp('        $n: $n \\?\\? this\\.$n,\\n'),
+      'lerp entry': RegExp('      $n: Color\\.lerp\\($n, other\\.$n, t\\)!,\\n'),
+    };
 
-    for (final pattern in singlePatterns) {
-      content = content.replaceFirst(pattern, '');
+    for (final entry in singlePatterns.entries) {
+      final updated = content.replaceFirst(entry.value, '');
+      if (updated == content) {
+        throw Exception(
+            "Could not remove '$name' — its ${entry.key} line wasn't found "
+            'in the expected format. AppColorScheme was left unchanged; the '
+            'file may have been edited by hand.');
+      }
+      content = updated;
     }
 
-    // Appears in both the light and dark blocks.
-    content = content.replaceAll(
-      RegExp('    $n: Color\\(0x[0-9A-Fa-f]{8}\\),\\n'),
-      '',
-    );
+    // Must appear in exactly both the light and dark blocks.
+    final colorValuePattern = RegExp('    $n: Color\\(0x[0-9A-Fa-f]{8}\\),\\n');
+    final colorValueCount = colorValuePattern.allMatches(content).length;
+    if (colorValueCount != 2) {
+      throw Exception(
+          "Could not remove '$name' — expected its Color(0x...) value in "
+          'both the light and dark blocks, but found $colorValueCount '
+          'occurrence(s). AppColorScheme was left unchanged; the file may '
+          'have been edited by hand.');
+    }
+    content = content.replaceAll(colorValuePattern, '');
 
     await file.writeAsString(content);
   }

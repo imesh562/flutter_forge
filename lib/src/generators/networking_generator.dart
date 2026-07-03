@@ -14,7 +14,33 @@ final class NetworkingGenerator {
       _writeMockResponses(base),
       _writeMockApiHelper(base, pkg),
       _writeWebhookHelper(base, pkg),
+      _writeNetworkInfo(base),
     ]);
+  }
+
+  Future<void> _writeNetworkInfo(String base) async {
+    await FileUtils.writeFile(
+      p.join(base, 'network_info.dart'),
+      '''
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:injectable/injectable.dart';
+
+/// Checks whether the device currently has network connectivity.
+///
+/// Repositories query [isConnected] before dispatching to a datasource so
+/// that being offline surfaces immediately as a `NetworkFailure` instead of
+/// waiting on a doomed HTTP call to time out.
+@lazySingleton
+class NetworkInfo {
+  const NetworkInfo();
+
+  Future<bool> get isConnected async {
+    final result = await Connectivity().checkConnectivity();
+    return !result.contains(ConnectivityResult.none);
+  }
+}
+''',
+    );
   }
 
   Future<void> _writeNetworkConfig(String base, String pkg) async {
@@ -36,14 +62,14 @@ abstract final class NetworkConfig {
       '''
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:injectable/injectable.dart' hide Environment;
 
-import 'package:$pkg/core/di/injection.dart';
 import 'package:$pkg/error/exceptions.dart';
 import 'package:$pkg/flavors/flavor_config.dart';
 import 'network_config.dart';
 
-@LazySingleton(env: [Environment.stg, Environment.preProd, Environment.prod])
+/// Not injected directly — [MockApiHelper] extends this and is the one
+/// registered `as: ApiHelper`, in every environment, so real network calls
+/// stay available at all times behind [MockApiHelper]'s `super` delegation.
 class ApiHelper {
   ApiHelper() {
     _dio = Dio(
@@ -148,10 +174,15 @@ class ApiHelper {
 
   Future<Response<T>> delete<T>(
     String path, {
+    Map<String, dynamic>? queryParameters,
     Options? options,
   }) async {
     try {
-      final response = await _dio.delete<T>(path, options: options);
+      final response = await _dio.delete<T>(
+        path,
+        queryParameters: queryParameters,
+        options: options,
+      );
       _checkSuccess(response);
       return response;
     } on DioException catch (e) {
@@ -167,9 +198,10 @@ class ApiHelper {
     await FileUtils.writeFile(
       p.join(base, 'mock_config.dart'),
       '''
-// Toggle kUseMockApi to enable or disable mock networking in the DEV flavor.
-// When false, real network calls are made even in DEV.
-// Use the flutter_forge CLI menu to toggle this value.
+// Toggle kUseMockApi to switch every environment between mock and real
+// networking — dev, staging, pre-prod, prod, and the flavorless single-main
+// build all honor this flag identically. When false, real network calls are
+// always made. Use the flutter_forge CLI menu to toggle this value.
 bool kUseMockApi = false;
 ''',
     );
@@ -201,12 +233,15 @@ import 'api_helper.dart';
 import 'mock_config.dart';
 import 'mock_responses.dart';
 
-/// Active only in the DEV environment.
+/// The sole registration for [ApiHelper] — active in every environment
+/// (dev, staging, pre-prod, prod) and in flavorless single-main builds alike,
+/// so mock and real networking are both always available and switchable.
+///
 /// When [kUseMockApi] is true, intercepts every call and returns the matching
 /// entry from [kMockResponses], or an empty 200 if no entry is registered.
 /// When [kUseMockApi] is false, delegates to the real [ApiHelper] so you can
-/// hit a live DEV server without changing flavors.
-@LazySingleton(as: ApiHelper, env: [Environment.dev])
+/// hit a live server without changing anything else.
+@LazySingleton(as: ApiHelper)
 final class MockApiHelper extends ApiHelper {
   @override
   Future<Response<T>> get<T>(
@@ -251,9 +286,12 @@ final class MockApiHelper extends ApiHelper {
   @override
   Future<Response<T>> delete<T>(
     String path, {
+    Map<String, dynamic>? queryParameters,
     Options? options,
   }) async {
-    if (!kUseMockApi) return super.delete(path, options: options);
+    if (!kUseMockApi) {
+      return super.delete(path, queryParameters: queryParameters, options: options);
+    }
     return _mock('DELETE', path);
   }
 
@@ -286,10 +324,14 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'package:$pkg/flavors/flavor_config.dart';
 
-/// Manages a single, persistent WebSocket connection with automatic
-/// reconnection and exponential back-off.
+/// Manages one persistent, auto-reconnecting WebSocket connection per
+/// distinct [path], all sharing the same [FlavorConfig.instance.wsUrl] base
+/// URL — e.g. `streamFor('/chat')` and `streamFor('/orders')` open two
+/// independent connections, while repeated calls with the same path reuse a
+/// single one. Pass an empty (or omitted) path to connect to the base URL
+/// itself, with no additional endpoint segment.
 ///
-/// Back-off schedule (capped at 64 s):
+/// Back-off schedule per connection (capped at 64 s):
 ///   attempt 1 →  1 s
 ///   attempt 2 →  2 s
 ///   attempt 3 →  4 s
@@ -298,14 +340,54 @@ import 'package:$pkg/flavors/flavor_config.dart';
 ///   attempt 6 → 32 s
 ///   attempt 7+ → 64 s
 ///
-/// All decoded JSON messages are forwarded to [stream].  Datasources filter
-/// [stream] by `data['type']` to receive only the events they care about.
+/// Datasources filter a connection's stream by `data['type']` to receive
+/// only the events they care about, so several endpoints can multiplex over
+/// the same path.
 @lazySingleton
 final class WebhookHelper {
-  WebhookHelper() {
-    _connect();
+  final _connections = <String, _SocketConnection>{};
+
+  /// The decoded-JSON message stream for the connection at [path].
+  /// Repeated calls with the same [path] reuse the existing connection.
+  Stream<Map<String, dynamic>> streamFor([String path = '']) =>
+      _connectionFor(path).stream;
+
+  /// Sends a raw JSON payload through the connection at [path].
+  /// No-op if that connection is not yet established.
+  void send(Map<String, dynamic> payload, {String path = ''}) =>
+      _connectionFor(path).send(payload);
+
+  _SocketConnection _connectionFor(String path) => _connections.putIfAbsent(
+        path,
+        () => _SocketConnection(_urlFor(path))..connect(),
+      );
+
+  /// Joins the flavor's base WebSocket URL with [path], tolerating either
+  /// side having (or lacking) a slash. Returns the base URL unchanged when
+  /// [path] is empty.
+  String _urlFor(String path) {
+    final base = FlavorConfig.instance.wsUrl;
+    if (path.isEmpty) return base;
+    final trimmedBase =
+        base.endsWith('/') ? base.substring(0, base.length - 1) : base;
+    final normalizedPath = path.startsWith('/') ? path : '/\$path';
+    return '\$trimmedBase\$normalizedPath';
   }
 
+  /// Closes every open connection. Call once, when the app is disposed.
+  void dispose() {
+    for (final connection in _connections.values) {
+      connection.dispose();
+    }
+    _connections.clear();
+  }
+}
+
+/// A single reconnecting WebSocket connection with exponential back-off.
+class _SocketConnection {
+  _SocketConnection(this._url);
+
+  final String _url;
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
   Timer? _reconnectTimer;
@@ -318,14 +400,12 @@ final class WebhookHelper {
 
   Stream<Map<String, dynamic>> get stream => _controller.stream;
 
-  Future<void> _connect() async {
+  Future<void> connect() async {
     if (_disposed) return;
     _subscription?.cancel();
     _channel?.sink.close();
 
-    _channel = WebSocketChannel.connect(
-      Uri.parse(FlavorConfig.instance.wsUrl),
-    );
+    _channel = WebSocketChannel.connect(Uri.parse(_url));
 
     // In web_socket_channel v2+, connection errors surface via the ready
     // future, not the stream. Awaiting it here ensures failures are caught
@@ -362,15 +442,15 @@ final class WebhookHelper {
   void _scheduleReconnect() {
     if (_disposed) return;
     // Cancel any pending reconnect before scheduling a new one so that rapid
-    // onError + onDone firings don't stack up multiple concurrent _connect calls.
+    // onError + onDone firings don't stack up multiple concurrent connect calls.
     _reconnectTimer?.cancel();
     _attempt++;
     final delay = Duration(
       seconds: min(_maxBackoffSeconds, pow(2, _attempt - 1).toInt()),
     );
-    // _connect is async; Timer discards the returned Future. Errors are
+    // connect() is async; Timer discards the returned Future. Errors are
     // handled internally so there are no unhandled rejections.
-    _reconnectTimer = Timer(delay, () => _connect());
+    _reconnectTimer = Timer(delay, () => connect());
   }
 
   /// Sends a raw JSON payload through the open channel.

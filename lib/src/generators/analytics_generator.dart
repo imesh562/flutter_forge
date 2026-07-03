@@ -13,7 +13,11 @@ final class AnalyticsGenerator {
 
     if (config.useFirebase) futs.add(_writeFirebaseService(base));
     if (config.hasMixpanel) futs.add(_writeMixpanelService(base, pkg));
-    futs.add(_writeCompositeService(base, config));
+    // No providers to fan out to — di_generator.dart correspondingly skips
+    // registering AnalyticsService at all in this case.
+    if (config.useFirebase || config.hasMixpanel) {
+      futs.add(_writeCompositeService(base, config));
+    }
 
     await Future.wait(futs);
   }

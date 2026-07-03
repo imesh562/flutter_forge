@@ -124,6 +124,12 @@ final class BlocGenerator {
       }
     }
 
+    final startedClassName = endpointType == 'websocket'
+        ? '${endpointPascal}WebSocketStarted'
+        : '${endpointPascal}Started';
+    _assertNoCollision(eventsFile, 'class $startedClassName extends');
+    _assertNoCollision(blocFile, '_on$endpointPascal(');
+
     await Future.wait([
       _addEvent(
         eventsFile,
@@ -182,6 +188,9 @@ final class BlocGenerator {
       }
     }
 
+    _assertNoCollision(cubitFile, 'Future<void> $endpointCamel(');
+    _assertNoCollision(statesFile, 'class ${endpointPascal}Success extends');
+
     await Future.wait([
       _addCubitState(
         statesFile,
@@ -235,6 +244,9 @@ final class BlocGenerator {
       }
     }
 
+    _assertNoCollision(eventsFile, 'class ${actionPascal}Started extends');
+    _assertNoCollision(blocFile, '_on$actionPascal(');
+
     await Future.wait([
       _addStandaloneEvent(eventsFile, actionPascal, blocPascal, requestType),
       _addStandaloneBlocState(statesFile, actionPascal, blocPascal, responseType),
@@ -274,6 +286,9 @@ final class BlocGenerator {
         );
       }
     }
+
+    _assertNoCollision(cubitFile, 'Future<void> $actionCamel(');
+    _assertNoCollision(statesFile, 'class ${actionPascal}Success extends');
 
     await Future.wait([
       _addStandaloneCubitState(statesFile, actionPascal, cubitPascal, responseType),
@@ -1079,6 +1094,25 @@ void main() {
 }
 ''',
     );
+  }
+
+  /// Throws if [filePath] already contains [declarationPrefix] — the start
+  /// of a class or method declaration this generator is about to append
+  /// (e.g. `'class LoginStarted extends'` or `'Future<void> login('`).
+  ///
+  /// Without this, re-running generation for the same endpoint/action name
+  /// (a retry after a partial failure, or simply picking a name that's
+  /// already in use) silently produces a duplicate declaration — a hard
+  /// "already defined" compile error with no explanation at generation time.
+  void _assertNoCollision(String filePath, String declarationPrefix) {
+    final content = File(filePath).readAsStringSync();
+    if (content.contains(declarationPrefix)) {
+      throw StateError(
+        'A declaration starting with "$declarationPrefix" already exists in '
+        '$filePath.\n'
+        'Choose a different name, or remove the existing declaration first.',
+      );
+    }
   }
 
   void _assertSentinel(String content, String sentinel, String filePath) {

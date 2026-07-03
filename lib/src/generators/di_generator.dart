@@ -86,16 +86,12 @@ import 'package:shared_preferences/shared_preferences.dart' as _i460;
 
 import '../network/api_helper.dart' as _i938;
 import '../network/mock_api_helper.dart' as _i_mock;
+import '../network/network_info.dart' as _i_net;
 import '../network/webhook_helper.dart' as _i_ws;
 import '../storage/preferences_service.dart' as _i636;
 import '../storage/secure_storage_service.dart' as _i666;
 import 'register_module.dart' as _i291;
 $analyticsLine
-
-const String _dev = 'dev';
-const String _stg = 'stg';
-const String _pre_prod = 'pre_prod';
-const String _prod = 'prod';
 
 extension GetItInjectableX on _i174.GetIt {
   Future<_i174.GetIt> init({
@@ -110,15 +106,12 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.lazySingleton<_i558.FlutterSecureStorage>(
         () => registerModule.flutterSecureStorage);
-    gh.lazySingleton<_i938.ApiHelper>(
-      () => _i938.ApiHelper(),
-      registerFor: {_stg, _pre_prod, _prod},
-    );
-    gh.lazySingleton<_i938.ApiHelper>(
-      () => _i_mock.MockApiHelper(),
-      registerFor: {_dev},
-    );
+    // MockApiHelper is the sole ApiHelper registration, in every environment
+    // (and in flavorless builds) — kUseMockApi switches it between mock and
+    // real networking without changing which environment is active.
+    gh.lazySingleton<_i938.ApiHelper>(() => _i_mock.MockApiHelper());
     gh.lazySingleton<_i_ws.WebhookHelper>(() => _i_ws.WebhookHelper());
+    gh.lazySingleton<_i_net.NetworkInfo>(() => const _i_net.NetworkInfo());
     gh.lazySingleton<_i636.PreferencesService>(
         () => _i636.PreferencesService(gh<_i460.SharedPreferences>()));
     gh.lazySingleton<_i666.SecureStorageService>(

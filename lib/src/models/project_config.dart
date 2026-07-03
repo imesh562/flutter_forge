@@ -40,6 +40,13 @@ final class ProjectConfig {
   bool get hasMixpanel =>
       flavorSettings.any((s) => s.mixpanelToken?.isNotEmpty ?? false);
 
-  FlavorSettings settingsFor(Flavor flavor) =>
-      flavorSettings.firstWhere((s) => s.flavor == flavor);
+  FlavorSettings settingsFor(Flavor flavor) => flavorSettings.firstWhere(
+        (s) => s.flavor == flavor,
+        orElse: () => throw StateError(
+          'No FlavorSettings for ${flavor.label} — flavorSettings only '
+          'contains: ${flavorSettings.map((s) => s.flavor.label).join(', ')}. '
+          '${useFlavors ? '' : 'This project has useFlavors=false, so only '
+              'Flavor.prod is available — did you mean flavorSettings.first?'}',
+        ),
+      );
 }

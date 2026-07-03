@@ -75,6 +75,7 @@ abstract class ${featurePascal}Repository {
 import 'package:fpdart/fpdart.dart';
 import 'package:injectable/injectable.dart';
 
+import 'package:$pkg/core/network/network_info.dart';
 import 'package:$pkg/error/exceptions.dart';
 import 'package:$pkg/error/failures.dart';
 import 'package:$pkg/features/$feature/data/datasources/${featureSnake}_remote_datasource.dart';
@@ -82,9 +83,10 @@ import 'package:$pkg/features/$feature/domain/repositories/${featureSnake}_repos
 
 @LazySingleton(as: ${featurePascal}Repository)
 class ${featurePascal}RepositoryImpl implements ${featurePascal}Repository {
-  const ${featurePascal}RepositoryImpl(this._datasource);
+  const ${featurePascal}RepositoryImpl(this._datasource, this._networkInfo);
 
   final ${featurePascal}RemoteDatasource _datasource;
+  final NetworkInfo _networkInfo;
 }
 ''',
     );
@@ -184,12 +186,17 @@ abstract class ${featurePascal}Repository {
 
     await FileUtils.patchFile(filePath, (content) {
       var updated = content;
-      if (hasRequest && !updated.contains("'$requestSnake.dart'")) {
+      // Note: checking for '$requestSnake.dart' (no leading quote) rather
+      // than "'$requestSnake.dart'" — the real import text always has a
+      // '/' immediately before the filename, never a quote, so the
+      // quote-prefixed form can never match and would silently duplicate
+      // the import on every call.
+      if (hasRequest && !updated.contains('$requestSnake.dart')) {
         final importBlock =
             "import 'package:$pkg/features/$feature/data/models/$requestSnake.dart';\n"
             "import 'package:$pkg/features/$feature/data/models/$responseSnake.dart';";
         updated = updated.replaceFirst('\nabstract', '\n$importBlock\n\nabstract');
-      } else if (!hasRequest && !updated.contains("'$responseSnake.dart'")) {
+      } else if (!hasRequest && !updated.contains('$responseSnake.dart')) {
         final importBlock =
             "import 'package:$pkg/features/$feature/data/models/$responseSnake.dart';";
         updated = updated.replaceFirst('\nabstract', '\n$importBlock\n\nabstract');
@@ -236,6 +243,7 @@ abstract class ${featurePascal}Repository {
 import 'package:fpdart/fpdart.dart';
 import 'package:injectable/injectable.dart';
 
+import 'package:$pkg/core/network/network_info.dart';
 import 'package:$pkg/error/exceptions.dart';
 import 'package:$pkg/error/failures.dart';
 import 'package:$pkg/features/$feature/data/datasources/${featureSnake}_remote_datasource.dart';
@@ -243,9 +251,10 @@ import 'package:$pkg/features/$feature/domain/repositories/${featureSnake}_repos
 
 @LazySingleton(as: ${featurePascal}Repository)
 class ${featurePascal}RepositoryImpl implements ${featurePascal}Repository {
-  const ${featurePascal}RepositoryImpl(this._datasource);
+  const ${featurePascal}RepositoryImpl(this._datasource, this._networkInfo);
 
   final ${featurePascal}RemoteDatasource _datasource;
+  final NetworkInfo _networkInfo;
 }
 ''',
       );
@@ -253,7 +262,34 @@ class ${featurePascal}RepositoryImpl implements ${featurePascal}Repository {
 
     await FileUtils.patchFile(filePath, (content) {
       var updated = content;
-      if (hasRequest && !updated.contains("'$requestSnake.dart'")) {
+      if (!updated.contains('network_info.dart')) {
+        updated = updated.replaceFirst(
+          "\nimport 'package:$pkg/error/exceptions.dart';",
+          "\nimport 'package:$pkg/core/network/network_info.dart';"
+              "\nimport 'package:$pkg/error/exceptions.dart';",
+        );
+      }
+      // A repo generated before NetworkInfo existed (older tool version)
+      // still has `ClassName(this._datasource);` with no _networkInfo field —
+      // retrofit both before appending a new connectivity-checked method that
+      // references _networkInfo, so we don't hand back a file that fails to
+      // compile. No-ops (leaving the class untouched) if the constructor
+      // doesn't match this exact shape, e.g. it already has other params a
+      // developer added by hand — safer to skip than guess wrong.
+      if (!updated.contains('_networkInfo')) {
+        updated = updated.replaceFirstMapped(
+          RegExp('(${featurePascal}RepositoryImpl)\\(this\\._datasource\\);'),
+          (m) => '${m.group(1)}(this._datasource, this._networkInfo);',
+        );
+        updated = updated.replaceFirstMapped(
+          RegExp(r'(final \w+RemoteDatasource _datasource;)'),
+          (m) => '${m.group(1)}\n  final NetworkInfo _networkInfo;',
+        );
+      }
+      // Same fix as the network_info guard above: check for '$requestSnake.dart'
+      // (no leading quote) since the real import text always has a '/'
+      // immediately before the filename, never a quote.
+      if (hasRequest && !updated.contains('$requestSnake.dart')) {
         final importBlock =
             "import 'package:$pkg/features/$feature/data/models/$requestSnake.dart';\n"
             "import 'package:$pkg/features/$feature/data/models/$responseSnake.dart';";
@@ -261,7 +297,7 @@ class ${featurePascal}RepositoryImpl implements ${featurePascal}Repository {
           '\n@LazySingleton',
           '\n$importBlock\n\n@LazySingleton',
         );
-      } else if (!hasRequest && !updated.contains("'$responseSnake.dart'")) {
+      } else if (!hasRequest && !updated.contains('$responseSnake.dart')) {
         final importBlock =
             "import 'package:$pkg/features/$feature/data/models/$responseSnake.dart';";
         updated = updated.replaceFirst(
@@ -274,6 +310,10 @@ class ${featurePascal}RepositoryImpl implements ${featurePascal}Repository {
           ? '''
   @override
   Stream<Either<Failure, $responseClass>> $endpointCamel() async* {
+    if (!await _networkInfo.isConnected) {
+      yield Left(NetworkFailure('No internet connection'));
+      return;
+    }
     try {
       yield* _datasource.$endpointCamel().map(Right.new);
     } on UnAuthorizedException catch (e) {
@@ -291,6 +331,9 @@ class ${featurePascal}RepositoryImpl implements ${featurePascal}Repository {
   Future<Either<Failure, $responseClass>> $endpointCamel(
     $requestClass request,
   ) async {
+    if (!await _networkInfo.isConnected) {
+      return Left(NetworkFailure('No internet connection'));
+    }
     try {
       final result = await _datasource.$endpointCamel(request);
       return Right(result);
@@ -310,6 +353,9 @@ class ${featurePascal}RepositoryImpl implements ${featurePascal}Repository {
               : '''
   @override
   Future<Either<Failure, $responseClass>> $endpointCamel() async {
+    if (!await _networkInfo.isConnected) {
+      return Left(NetworkFailure('No internet connection'));
+    }
     try {
       final result = await _datasource.$endpointCamel();
       return Right(result);

@@ -57,7 +57,7 @@ final class ProjectGenerator {
 
   List<Future<void> Function()> _buildSteps(ProjectConfig config) => [
         () async {
-          stdout.writeln('── Step 1/14  Creating Flutter project ─────────────────');
+          stdout.writeln('── Step 1/21  Creating Flutter project ─────────────────');
           await ProcessUtils.run('flutter', [
             'create',
             '--org',
@@ -68,7 +68,7 @@ final class ProjectGenerator {
           ]);
         },
         () async {
-          stdout.writeln('── Step 2/14  Removing default entrypoint ───────────────');
+          stdout.writeln('── Step 2/21  Removing default entrypoint ───────────────');
           await FileUtils.deleteIfExists(
             p.join(config.projectPath, 'lib', 'main.dart'),
           );
@@ -84,82 +84,82 @@ final class ProjectGenerator {
           );
         },
         () async {
-          stdout.writeln('── Step 3/14  Scaffolding Clean Architecture tree ───────');
+          stdout.writeln('── Step 3/21  Scaffolding Clean Architecture tree ───────');
           await StructureGenerator().run(config);
         },
         () async {
-          stdout.writeln('── Step 4/14  Writing pubspec.yaml ──────────────────────');
+          stdout.writeln('── Step 4/21  Writing pubspec.yaml ──────────────────────');
           await PubspecGenerator().run(config);
         },
         () async {
-          stdout.writeln('── Step 5/14  Writing analysis_options.yaml ─────────────');
+          stdout.writeln('── Step 5/21  Writing analysis_options.yaml ─────────────');
           await AnalysisOptionsGenerator().run(config);
         },
         () async {
-          stdout.writeln('── Step 6/14  Generating flavor entrypoints ─────────────');
+          stdout.writeln('── Step 6/21  Generating flavor entrypoints ─────────────');
           await EntrypointGenerator().run(config);
         },
         () async {
-          stdout.writeln('── Step 7/14  Generating exception hierarchy ────────────');
+          stdout.writeln('── Step 7/21  Generating exception hierarchy ────────────');
           await ExceptionGenerator().run(config);
         },
         () async {
-          stdout.writeln('── Step 8/14  Generating networking layer ───────────────');
+          stdout.writeln('── Step 8/21  Generating networking layer ───────────────');
           await NetworkingGenerator().run(config);
         },
         () async {
-          stdout.writeln('── Step 9/14  Generating storage services ───────────────');
+          stdout.writeln('── Step 9/21  Generating storage services ───────────────');
           await StorageGenerator().run(config);
         },
         () async {
           if (config.useFirebase) {
-            stdout.writeln('── Step 10/14 Generating Firebase & push services ───────');
+            stdout.writeln('── Step 10/21 Generating Firebase & push services ───────');
             await FirebaseGenerator().run(config);
           } else {
-            stdout.writeln('── Step 10/14 Firebase skipped ──────────────────────────');
+            stdout.writeln('── Step 10/21 Firebase skipped ──────────────────────────');
           }
         },
         () async {
-          stdout.writeln('── Step 11/14 Generating analytics services ─────────────');
+          stdout.writeln('── Step 11/21 Generating analytics services ─────────────');
           await AnalyticsGenerator().run(config);
         },
         () async {
-          stdout.writeln('── Step 12/14 Generating navigation ─────────────────────');
+          stdout.writeln('── Step 12/21 Generating navigation ─────────────────────');
           await NavigationGenerator().run(config);
         },
         () async {
-          stdout.writeln('── Step 13/14 Generating DI setup ───────────────────────');
+          stdout.writeln('── Step 13/21 Generating DI setup ───────────────────────');
           await DiGenerator().run(config);
         },
         () async {
-          stdout.writeln('── Step 14/14 Generating theme & shared providers ───────');
+          stdout.writeln('── Step 14/21 Generating theme & shared providers ───────');
           await ThemeGenerator().run(config);
         },
         () async {
-          stdout.writeln('── Patching Android build files ─────────────────────────');
+          stdout.writeln('── Step 15/21 Patching Android build files ──────────────');
           await AndroidGenerator().run(config);
         },
         () async {
-          stdout.writeln('── Creating iOS flavor schemes ──────────────────────────');
+          stdout.writeln('── Step 16/21 Creating iOS flavor schemes ───────────────');
           await IosGenerator().run(config);
         },
         () async {
-          stdout.writeln('── Writing IDE run configurations ───────────────────────');
+          stdout.writeln('── Step 17/21 Writing IDE run configurations ────────────');
           await VscodeGenerator().run(config);
         },
         () async {
-          stdout.writeln('── Initialising codegen registry ────────────────────────');
+          stdout.writeln('── Step 18/21 Initialising codegen registry ─────────────');
           await FileUtils.writeJson(
             p.join(config.projectPath, 'codegen_registry.json'),
             RegistryManager.initialRegistry(),
           );
         },
         () async {
-          stdout.writeln('── Scaffolding initial feature files ────────────────────');
+          stdout.writeln('── Step 19/21 Scaffolding initial feature files ─────────');
           await _scaffoldInitialFeatures(config);
         },
         () async {
-          stdout.writeln('── Running flutter pub get ───────────────────────────────');
+          stdout.writeln('── Step 20/21 Running flutter pub get ───────────────────');
           await ProcessUtils.run(
             'flutter',
             ['pub', 'get'],
@@ -167,7 +167,7 @@ final class ProjectGenerator {
           );
         },
         () async {
-          stdout.writeln('── Formatting generated code ─────────────────────────────');
+          stdout.writeln('── Step 21/21 Formatting generated code ─────────────────');
           await ProcessUtils.run(
             'dart',
             ['format', 'lib/'],
@@ -209,49 +209,70 @@ final class ProjectGenerator {
   }
 
   void _printNextSteps(ProjectConfig config) {
+    stdout.writeln(buildNextStepsBanner(config));
+  }
+
+  /// Builds the "scaffold complete" banner text — pulled out of
+  /// [_printNextSteps] (which just prints it) so the step-numbering logic is
+  /// unit-testable without capturing stdout.
+  String buildNextStepsBanner(ProjectConfig config) {
     final useFirebase = config.useFirebase;
     final useFlavors = config.useFlavors;
     final appName = config.appDisplayName;
 
+    // Numbered sequentially in the exact order these sections are printed
+    // below (firebase → codegen → run → features), so no combination of
+    // flags can produce a duplicate or out-of-order step number.
+    var step = 1;
+    int? firebaseStepA;
+    int? firebaseStepB;
+    if (useFirebase) {
+      firebaseStepA = step++;
+      firebaseStepB = step++;
+    }
+    final codegenStepNumber = step++;
+    final runStepNumber = step++;
+    final featureStepNumber = step++;
+
     final firebaseSteps = useFirebase
         ? (useFlavors
             ? '''
-║  1. Add google-services.json for each flavor:            ║
+║  $firebaseStepA. Add google-services.json for each flavor:            ║
 ║     android/app/src/dev/google-services.json             ║
 ║     android/app/src/stg/google-services.json             ║
 ║     android/app/src/preProd/google-services.json         ║
 ║     android/app/src/prod/google-services.json            ║
 ║                                                          ║
-║  2. Add GoogleService-Info.plist for each flavor:        ║
+║  $firebaseStepB. Add GoogleService-Info.plist for each flavor:        ║
 ║     ios/config/dev/GoogleService-Info.plist              ║
 ║     ios/config/stg/GoogleService-Info.plist              ║
 ║     ios/config/preProd/GoogleService-Info.plist          ║
 ║     ios/config/prod/GoogleService-Info.plist             ║
 ║                                                          ║'''
             : '''
-║  1. Add google-services.json:                            ║
+║  $firebaseStepA. Add google-services.json:                            ║
 ║     android/app/google-services.json                     ║
 ║                                                          ║
-║  2. Add GoogleService-Info.plist:                        ║
+║  $firebaseStepB. Add GoogleService-Info.plist:                        ║
 ║     ios/GoogleService-Info.plist                         ║
 ║                                                          ║''')
         : '';
 
     final runStep = useFlavors
         ? '''
-║  ${useFirebase ? '4' : '2'}. Run a flavor:                                        ║
+║  $runStepNumber. Run a flavor:                                        ║
 ║     flutter run --flavor dev --target lib/main_dev.dart  ║'''
         : '''
-║  ${useFirebase ? '3' : '1'}. Run the app:                                         ║
+║  $runStepNumber. Run the app:                                         ║
 ║     flutter run                                          ║''';
 
     final codegenStep = '''
-║  ${useFirebase ? '3' : (useFlavors ? '3' : '2')}. Run code generation:                                  ║
+║  $codegenStepNumber. Run code generation:                                  ║
 ║     dart run build_runner build \\                        ║
 ║       --delete-conflicting-outputs                       ║''';
 
     final featureStep = '''
-║  ${useFirebase ? '5' : (useFlavors ? '4' : '3')}. Add features:                                        ║
+║  $featureStepNumber. Add features:                                        ║
 ║     dart pub global run flutter_forge:generate           ║''';
 
     // On Windows the pub-cache bin dir is often missing from PATH, so surface
@@ -265,7 +286,7 @@ final class ProjectGenerator {
 ║  or always use the full command above.                   ║'''
         : '';
 
-    stdout.writeln('''
+    return '''
 
 ╔══════════════════════════════════════════════════════════╗
 ║  ✔  $appName scaffold complete!
@@ -278,6 +299,6 @@ $runStep
 ║                                                          ║
 $featureStep$windowsNote
 ╚══════════════════════════════════════════════════════════╝
-''');
+''';
   }
 }

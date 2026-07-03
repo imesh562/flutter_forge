@@ -315,6 +315,41 @@ void main() {
         contains('final class LoginWebSocketConnecting extends AuthState'),
       );
     });
+
+    test('throws StateError instead of duplicating a declaration when run '
+        'twice for the same endpoint', () async {
+      await _setup();
+      await gen.addEventToBloc(
+        projectPath: tmp.path,
+        pkg: 'my_app',
+        feature: 'auth',
+        blocName: 'auth',
+        endpointName: 'login',
+        requestClass: 'LoginRequest',
+        responseClass: 'LoginResponse',
+        endpointType: 'rest',
+      );
+
+      expect(
+        () => gen.addEventToBloc(
+          projectPath: tmp.path,
+          pkg: 'my_app',
+          feature: 'auth',
+          blocName: 'auth',
+          endpointName: 'login',
+          requestClass: 'LoginRequest',
+          responseClass: 'LoginResponse',
+          endpointType: 'rest',
+        ),
+        throwsStateError,
+      );
+
+      // And the event file must not have been touched a second time.
+      final content = await File(
+        p.join(tmp.path, 'lib/features/auth/presentation/blocs/auth/auth_event.dart'),
+      ).readAsString();
+      expect('class LoginStarted extends'.allMatches(content).length, 1);
+    });
   });
 
   group('BlocGenerator.addCustomEventToBloc', () {
@@ -405,6 +440,27 @@ void main() {
         throwsStateError,
       );
     });
+
+    test('throws StateError instead of duplicating a declaration when the '
+        'action name is already used', () async {
+      await _setupBloc();
+      await gen.addCustomEventToBloc(
+        projectPath: tmp.path,
+        feature: 'profile',
+        blocName: 'profile',
+        actionName: 'loadProfile',
+      );
+
+      expect(
+        () => gen.addCustomEventToBloc(
+          projectPath: tmp.path,
+          feature: 'profile',
+          blocName: 'profile',
+          actionName: 'loadProfile',
+        ),
+        throwsStateError,
+      );
+    });
   });
 
   group('BlocGenerator.addCustomMethodToCubit', () {
@@ -465,6 +521,116 @@ void main() {
           actionName: 'addItem',
         ),
         throwsStateError,
+      );
+    });
+
+    test('throws StateError instead of duplicating a declaration when the '
+        'action name is already used', () async {
+      await _setupCubit();
+      await gen.addCustomMethodToCubit(
+        projectPath: tmp.path,
+        feature: 'cart',
+        cubitName: 'cart',
+        actionName: 'addItem',
+      );
+
+      expect(
+        () => gen.addCustomMethodToCubit(
+          projectPath: tmp.path,
+          feature: 'cart',
+          cubitName: 'cart',
+          actionName: 'addItem',
+        ),
+        throwsStateError,
+      );
+    });
+  });
+
+  group('BlocGenerator.addMethodToCubit', () {
+    Future<void> _setup() async {
+      await gen.createCubit(
+        projectPath: tmp.path,
+        pkg: 'my_app',
+        feature: 'cart',
+        cubitName: 'cart',
+      );
+      final modelGen = ModelGenerator();
+      await modelGen.generateRequest(
+        projectPath: tmp.path,
+        pkg: 'my_app',
+        feature: 'cart',
+        endpointName: 'addItem',
+        fields: [{'name': 'sku', 'type': 'String'}],
+      );
+      await modelGen.generateResponse(
+        projectPath: tmp.path,
+        pkg: 'my_app',
+        feature: 'cart',
+        endpointName: 'addItem',
+        fields: [{'name': 'total', 'type': 'int'}],
+      );
+    }
+
+    test('appends success/failure states and a method to the cubit file', () async {
+      await _setup();
+      await gen.addMethodToCubit(
+        projectPath: tmp.path,
+        pkg: 'my_app',
+        feature: 'cart',
+        cubitName: 'cart',
+        endpointName: 'addItem',
+        requestClass: 'AddItemRequest',
+        responseClass: 'AddItemResponse',
+        endpointType: 'rest',
+      );
+
+      final stateContent = await File(
+        p.join(tmp.path, 'lib/features/cart/presentation/cubits/cart/cart_state.dart'),
+      ).readAsString();
+      expect(stateContent, contains('final class AddItemSuccess extends CartState'));
+      expect(stateContent, contains('final AddItemResponse data;'));
+
+      final cubitContent = await File(
+        p.join(tmp.path, 'lib/features/cart/presentation/cubits/cart/cart_cubit.dart'),
+      ).readAsString();
+      expect(cubitContent, contains('Future<void> addItem(AddItemRequest request) async {'));
+      expect(cubitContent, contains('emit(const CartLoading())'));
+    });
+
+    test('throws StateError instead of duplicating a declaration when run '
+        'twice for the same endpoint', () async {
+      await _setup();
+      await gen.addMethodToCubit(
+        projectPath: tmp.path,
+        pkg: 'my_app',
+        feature: 'cart',
+        cubitName: 'cart',
+        endpointName: 'addItem',
+        requestClass: 'AddItemRequest',
+        responseClass: 'AddItemResponse',
+        endpointType: 'rest',
+      );
+
+      expect(
+        () => gen.addMethodToCubit(
+          projectPath: tmp.path,
+          pkg: 'my_app',
+          feature: 'cart',
+          cubitName: 'cart',
+          endpointName: 'addItem',
+          requestClass: 'AddItemRequest',
+          responseClass: 'AddItemResponse',
+          endpointType: 'rest',
+        ),
+        throwsStateError,
+      );
+
+      final cubitContent = await File(
+        p.join(tmp.path, 'lib/features/cart/presentation/cubits/cart/cart_cubit.dart'),
+      ).readAsString();
+      expect(
+        'Future<void> addItem('.allMatches(cubitContent).length,
+        1,
       );
     });
   });

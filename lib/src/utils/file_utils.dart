@@ -51,17 +51,52 @@ abstract final class FileUtils {
     final file = File(filePath);
     if (!file.existsSync()) return {};
     final raw = await file.readAsString();
-    return jsonDecode(raw) as Map<String, dynamic>;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) {
+        throw FormatException('Expected a JSON object at the top level.');
+      }
+      return decoded;
+    } on FormatException catch (e) {
+      throw FormatException(
+        'Could not parse $filePath as JSON: ${e.message}\n'
+        'Fix the file by hand, or delete it to start with an empty registry.',
+      );
+    }
   }
 
-  /// Inserts [insertion] immediately before the last `}` in [content].
+  /// Inserts [insertion] immediately before the closing `}` of the *first*
+  /// top-level class/declaration in [content] — found by depth-counting
+  /// braces from the first `{`, not by grabbing the last `}` in the whole
+  /// file.
   ///
   /// Used by code generators to append methods to a class without knowing
-  /// the exact line number. Trims trailing whitespace after the last brace
-  /// so the result always ends with a clean `}\n`.
+  /// the exact line number. Depth-counting (rather than `lastIndexOf('}')`)
+  /// matters because these files are meant to be hand-edited afterward: a
+  /// second class, an extension, or even a trailing comment containing `}`
+  /// added below the generated class would otherwise shift where the *last*
+  /// brace in the file is, silently corrupting the insertion point.
   static String insertBeforeClassEnd(String content, String insertion) {
-    final lastBrace = content.lastIndexOf('}');
-    if (lastBrace == -1) return '$content\n$insertion';
-    return '${content.substring(0, lastBrace)}$insertion}\n';
+    final start = content.indexOf('{');
+    if (start == -1) return '$content\n$insertion';
+
+    var depth = 1;
+    var pos = start + 1;
+    while (pos < content.length && depth > 0) {
+      if (content[pos] == '{') depth++;
+      if (content[pos] == '}') depth--;
+      pos++;
+    }
+
+    if (depth != 0) {
+      // Unbalanced braces — fall back to the old whole-file behavior rather
+      // than inserting at a nonsensical offset.
+      final lastBrace = content.lastIndexOf('}');
+      if (lastBrace == -1) return '$content\n$insertion';
+      return '${content.substring(0, lastBrace)}$insertion}\n';
+    }
+
+    final classEnd = pos - 1; // index of the matching '}'
+    return '${content.substring(0, classEnd)}$insertion${content.substring(classEnd)}';
   }
 }

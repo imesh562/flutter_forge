@@ -479,4 +479,84 @@ void main() {
       expect(content, isNot(contains("import 'get_")));
     });
   });
+
+  group('ModelGenerator — list-shaped models', () {
+    test('generateResponse emits a typedef + item class, not a flattened class',
+        () async {
+      await gen.generateResponse(
+        projectPath: tmp.path,
+        pkg: 'my_app',
+        feature: 'user',
+        endpointName: 'getUsers',
+        fields: [
+          {'name': 'id', 'type': 'int'},
+          {'name': 'name', 'type': 'String'},
+        ],
+        isList: true,
+        itemClassName: 'User',
+      );
+
+      final content = await File(
+        p.join(tmp.path, 'lib/features/user/data/models/get_users_response.dart'),
+      ).readAsString();
+
+      expect(content, contains('typedef GetUsersResponse = List<User>;'));
+      expect(content, contains('final class User extends Equatable'));
+      expect(content, contains('final int? id;'));
+      expect(content, contains('final String? name;'));
+      // The response class itself must not be emitted as a flattened class.
+      expect(content, isNot(contains('final class GetUsersResponse')));
+    });
+
+    test('generateRequest emits a typedef + item class for list bodies',
+        () async {
+      await gen.generateRequest(
+        projectPath: tmp.path,
+        pkg: 'my_app',
+        feature: 'user',
+        endpointName: 'bulkCreateUsers',
+        fields: [
+          {'name': 'name', 'type': 'String'},
+        ],
+        isList: true,
+        itemClassName: 'NewUser',
+      );
+
+      final content = await File(
+        p.join(
+          tmp.path,
+          'lib/features/user/data/models/bulk_create_users_request.dart',
+        ),
+      ).readAsString();
+
+      expect(
+        content,
+        contains('typedef BulkCreateUsersRequest = List<NewUser>;'),
+      );
+      expect(content, contains('final class NewUser {'));
+      expect(content, contains('Map<String, dynamic> toJson()'));
+      expect(content, isNot(contains('final class BulkCreateUsersRequest')));
+    });
+
+    test('generateResponse derives the item class name from endpointName '
+        'when none is given', () async {
+      await gen.generateResponse(
+        projectPath: tmp.path,
+        pkg: 'my_app',
+        feature: 'user',
+        endpointName: 'getUsers',
+        fields: [
+          {'name': 'id', 'type': 'int'},
+        ],
+        isList: true,
+      );
+
+      final content = await File(
+        p.join(tmp.path, 'lib/features/user/data/models/get_users_response.dart'),
+      ).readAsString();
+
+      expect(content, contains('typedef GetUsersResponse = List<GetUser>;'));
+      expect(content, contains('final class GetUser extends Equatable'));
+    });
+  });
 }

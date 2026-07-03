@@ -178,6 +178,37 @@ void main() {
         throwsException,
       );
     });
+
+    test('throws and leaves the file untouched when a line has drifted out '
+        'of the expected format', () async {
+      await adder.add(
+        name: 'cardBackground',
+        lightHex: '#FFFFFF',
+        darkHex: '#1E1E1E',
+      );
+
+      // Simulate manual formatting drift on the copyWith body line — extra
+      // space before the `?? this.` that the exact regex won't match.
+      final before = await schemeFile.readAsString();
+      final drifted = before.replaceFirst(
+        'cardBackground: cardBackground ?? this.cardBackground,',
+        'cardBackground: cardBackground  ?? this.cardBackground,',
+      );
+      expect(drifted, isNot(equals(before)));
+      await schemeFile.writeAsString(drifted);
+
+      await expectLater(
+        () => adder.remove('cardBackground'),
+        throwsException,
+      );
+
+      // The whole file must be untouched — not just missing every OTHER
+      // line while the drifted one survives.
+      final after = await schemeFile.readAsString();
+      expect(after, equals(drifted));
+      expect(after, contains('final Color cardBackground;'));
+      expect(after, contains('required this.cardBackground,'));
+    });
   });
 
   group('ColorAdder.update', () {

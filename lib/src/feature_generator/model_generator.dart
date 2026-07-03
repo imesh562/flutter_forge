@@ -14,6 +14,8 @@ final class ModelGenerator {
     required List<Map<String, String>> fields,
     List<NestedClassDef> nestedClasses = const [],
     bool forceOverwrite = false,
+    bool isList = false,
+    String? itemClassName,
   }) async {
     final className = '${StringUtils.toPascalCase(endpointName)}Request';
     final fileName = '${StringUtils.toSnakeCase(endpointName)}_request.dart';
@@ -26,13 +28,38 @@ final class ModelGenerator {
 
     final modelsDir = p.join(projectPath, 'lib/features/$feature/data/models');
     final existing = await _scanExistingClasses(modelsDir, filePath);
+    final partName = '${StringUtils.toSnakeCase(endpointName)}_request.g.dart';
+
+    if (isList) {
+      final resolvedItemName =
+          itemClassName ?? JsonTypeInferrer.itemClassName(endpointName);
+      final itemDef = NestedClassDef(className: resolvedItemName, fields: fields);
+      final (toEmit, importFiles) =
+          _partitionNested([itemDef, ...nestedClasses], existing);
+      final nestedBlocks = toEmit.map(_nestedRequestClass).join('\n');
+      final extraImports = _buildImportBlock(importFiles);
+
+      await FileUtils.writeFile(
+        filePath,
+        '''
+import 'package:json_annotation/json_annotation.dart';
+$extraImports
+part '$partName';
+
+typedef $className = List<$resolvedItemName>;
+
+$nestedBlocks
+''',
+      );
+      return;
+    }
+
     final (toEmit, importFiles) = _partitionNested(nestedClasses, existing);
 
     final fieldDeclarations = fields.map(_fieldDecl).join('\n');
     final constructorParams = fields
         .map((f) => '    this.${f['name']},')
         .join('\n');
-    final partName = '${StringUtils.toSnakeCase(endpointName)}_request.g.dart';
     final nestedBlocks = toEmit.map(_nestedRequestClass).join('\n');
     final extraImports = _buildImportBlock(importFiles);
 
@@ -68,6 +95,8 @@ ${nestedBlocks.isNotEmpty ? '\n$nestedBlocks\n' : ''}''',
     required List<Map<String, String>> fields,
     List<NestedClassDef> nestedClasses = const [],
     bool forceOverwrite = false,
+    bool isList = false,
+    String? itemClassName,
   }) async {
     final className = '${StringUtils.toPascalCase(endpointName)}Response';
     final fileName = '${StringUtils.toSnakeCase(endpointName)}_response.dart';
@@ -80,6 +109,33 @@ ${nestedBlocks.isNotEmpty ? '\n$nestedBlocks\n' : ''}''',
 
     final modelsDir = p.join(projectPath, 'lib/features/$feature/data/models');
     final existing = await _scanExistingClasses(modelsDir, filePath);
+    final partName = '${StringUtils.toSnakeCase(endpointName)}_response.g.dart';
+
+    if (isList) {
+      final resolvedItemName =
+          itemClassName ?? JsonTypeInferrer.itemClassName(endpointName);
+      final itemDef = NestedClassDef(className: resolvedItemName, fields: fields);
+      final (toEmit, importFiles) =
+          _partitionNested([itemDef, ...nestedClasses], existing);
+      final nestedBlocks = toEmit.map(_nestedResponseClass).join('\n');
+      final extraImports = _buildImportBlock(importFiles);
+
+      await FileUtils.writeFile(
+        filePath,
+        '''
+import 'package:equatable/equatable.dart';
+import 'package:json_annotation/json_annotation.dart';
+$extraImports
+part '$partName';
+
+typedef $className = List<$resolvedItemName>;
+
+$nestedBlocks
+''',
+      );
+      return;
+    }
+
     final (toEmit, importFiles) = _partitionNested(nestedClasses, existing);
 
     final fieldDeclarations = fields.map(_fieldDecl).join('\n');
@@ -87,7 +143,6 @@ ${nestedBlocks.isNotEmpty ? '\n$nestedBlocks\n' : ''}''',
         .map((f) => '    this.${f['name']},')
         .join('\n');
     final propsItems = fields.map((f) => f['name']).join(', ');
-    final partName = '${StringUtils.toSnakeCase(endpointName)}_response.g.dart';
     final nestedBlocks = toEmit.map(_nestedResponseClass).join('\n');
     final extraImports = _buildImportBlock(importFiles);
 

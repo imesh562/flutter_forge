@@ -2,11 +2,12 @@ import 'dart:io';
 
 import 'package:flutter_forge/src/project_generator.dart';
 import 'package:flutter_forge/src/utils/process_utils.dart';
+import 'package:flutter_forge/src/version.dart';
 import 'package:flutter_forge/src/wizard/project_wizard.dart';
 
 Future<void> main(List<String> args) async {
   if (args.contains('--version') || args.contains('-v')) {
-    stdout.writeln('1.0.0');
+    stdout.writeln(packageVersion);
     return;
   }
 
