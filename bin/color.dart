@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:dart_console/dart_console.dart';
 import 'package:flutter_forge/src/color_generator/color_adder.dart';
+import 'package:flutter_forge/src/version.dart';
 
 /// flutter_forge_color — manage AppColorScheme tokens in a generated project.
 ///
@@ -17,7 +18,7 @@ Future<void> main(List<String> args) async {
   final console = Console();
 
   if (args.isNotEmpty && (args.first == '--version' || args.first == '-v')) {
-    stdout.writeln('1.0.0');
+    stdout.writeln(packageVersion);
     return;
   }
 

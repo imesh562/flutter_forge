@@ -3,12 +3,13 @@ import 'dart:io';
 import 'package:flutter_forge/src/feature_generator/feature_wizard.dart';
 import 'package:flutter_forge/src/feature_generator/registry_manager.dart';
 import 'package:flutter_forge/src/utils/process_utils.dart';
+import 'package:flutter_forge/src/version.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 Future<void> main(List<String> args) async {
   if (args.contains('--version') || args.contains('-v')) {
-    stdout.writeln('1.0.0');
+    stdout.writeln(packageVersion);
     return;
   }
 
@@ -86,11 +87,22 @@ Examples:
   }
 
   stdout.writeln('\n── Formatting generated code ────────────────────────────');
-  await ProcessUtils.run(
-    'dart',
-    ['format', 'lib/'],
-    workingDirectory: projectPath,
-  );
+  try {
+    await ProcessUtils.run(
+      'dart',
+      ['format', 'lib/'],
+      workingDirectory: projectPath,
+    );
+  } on Exception catch (e) {
+    // Generation already succeeded at this point — a formatting failure
+    // (e.g. an unrelated pre-existing syntax error elsewhere in lib/)
+    // shouldn't be reported as if the whole command failed.
+    stderr.writeln(
+      '⚠ Could not auto-format the generated code: $e\n'
+      '  Your changes were generated successfully — run `dart format lib/` '
+      'manually to clean up formatting.',
+    );
+  }
 }
 
 String _extractPackageName(String pubspecContent) {

@@ -16,12 +16,10 @@ extension FlavorExtension on Flavor {
       };
 
   /// Gradle product flavor name (no underscores, camelCase).
-  String get gradleName => switch (this) {
-        Flavor.dev => 'dev',
-        Flavor.stg => 'stg',
-        Flavor.preProd => 'preProd',
-        Flavor.prod => 'prod',
-      };
+  /// Identical to [envName] today — kept as a separate, semantically-named
+  /// accessor since the two represent different concerns (DI environment key
+  /// vs. Android build flavor name) that could diverge later.
+  String get gradleName => envName;
 
   String get dartEntrypoint => switch (this) {
         Flavor.dev => 'lib/main_dev.dart',

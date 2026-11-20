@@ -130,6 +130,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
 
 $firebaseImports$analyticsImport
+import 'package:$pkg/core/storage/hive_service.dart';
 import 'package:$pkg/flavors/flavor.dart';
 import 'package:$pkg/flavors/flavor_config.dart';
 import 'package:$pkg/navigation/app_router.dart';$notificationProviderImport
@@ -139,6 +140,8 @@ import 'package:$pkg/shared/theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await HiveService.init();
 
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
@@ -233,6 +236,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
 
 $firebaseImports$analyticsImport
+import 'package:$pkg/core/storage/hive_service.dart';
 import 'package:$pkg/flavors/flavor_config.dart';
 import 'package:$pkg/navigation/app_router.dart';$notificationProviderImport
 import 'package:shared_preferences/shared_preferences.dart';
@@ -241,6 +245,8 @@ import 'package:$pkg/shared/theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await HiveService.init();
 
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 

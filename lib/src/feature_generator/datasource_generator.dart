@@ -34,7 +34,14 @@ final class DatasourceGenerator {
     required String path,
     required String endpointType,
     bool hasRequest = true,
+    bool requestIsList = false,
+    bool responseIsList = false,
+    String? responseItemClassName,
   }) async {
+    assert(
+      !responseIsList || responseItemClassName != null,
+      'responseItemClassName is required when responseIsList is true',
+    );
     final featurePascal = StringUtils.toPascalCase(feature);
     final endpointPascal = StringUtils.toPascalCase(endpointName);
     final endpointCamel = StringUtils.toCamelCase(endpointName);
@@ -70,6 +77,9 @@ final class DatasourceGenerator {
       path: path,
       endpointType: endpointType,
       hasRequest: hasRequest,
+      requestIsList: requestIsList,
+      responseIsList: responseIsList,
+      responseItemClassName: responseItemClassName,
     );
 
     await FileUtils.patchFile(filePath, (content) {
@@ -136,13 +146,20 @@ class ${featurePascal}RemoteDatasource {
     required String path,
     required String endpointType,
     bool hasRequest = true,
+    bool requestIsList = false,
+    bool responseIsList = false,
+    String? responseItemClassName,
   }) {
     if (endpointType == 'websocket') {
+      // An empty path means this endpoint connects to the base WebSocket URL
+      // directly, with no additional endpoint segment. A non-empty path gets
+      // its own independent, reused connection — see WebhookHelper.
+      final streamExpr = path.isEmpty ? '_ws.streamFor()' : "_ws.streamFor('$path')";
       return '''
 
-  /// Filters the shared WebSocket stream for [$responseClass] events.
+  /// Filters the ${path.isEmpty ? 'base-URL' : "'$path'"} WebSocket connection for [$responseClass] events.
   Stream<$responseClass> $endpointCamel() =>
-      _ws.stream
+      $streamExpr
           .where((data) => data['type'] == '$endpointName')
           .map((data) => $responseClass.fromJson(data));
 ''';
@@ -161,6 +178,13 @@ class ${featurePascal}RemoteDatasource {
     );
     final urlExpr = pathParams.isEmpty ? "'$path'" : "'$interpolatedPath'";
 
+    final responseFetchType = responseIsList ? 'List<dynamic>' : 'Map<String, dynamic>';
+    final responseParseExpr = responseIsList
+        ? 'response.data!\n'
+            '        .map((e) => $responseItemClassName.fromJson(e as Map<String, dynamic>))\n'
+            '        .toList()'
+        : '$responseClass.fromJson(response.data!)';
+
     if (!hasRequest) {
       final methodParams = pathParams.isEmpty
           ? ''
@@ -169,18 +193,21 @@ class ${featurePascal}RemoteDatasource {
       return '''
 
   Future<$responseClass> $endpointCamel($methodParams) async {
-    final response = await _api.$dioMethod<Map<String, dynamic>>(
+    final response = await _api.$dioMethod<$responseFetchType>(
       $callArgs
     );
-    return $responseClass.fromJson(response.data!);
+    return $responseParseExpr;
   }
 ''';
     }
 
     // GET and DELETE pass parameters as query params; others send a body.
-    final paramArg = (method == 'GET' || method == 'DELETE')
-        ? 'queryParameters: request.toJson()'
-        : 'data: request.toJson()';
+    // A list-shaped request body only makes sense where a body is sent.
+    final paramArg = requestIsList
+        ? 'data: request.map((e) => e.toJson()).toList()'
+        : (method == 'GET' || method == 'DELETE')
+            ? 'queryParameters: request.toJson()'
+            : 'data: request.toJson()';
 
     final methodParams = pathParams.isEmpty
         ? '$requestClass request'
@@ -189,11 +216,11 @@ class ${featurePascal}RemoteDatasource {
     return '''
 
   Future<$responseClass> $endpointCamel($methodParams) async {
-    final response = await _api.$dioMethod<Map<String, dynamic>>(
+    final response = await _api.$dioMethod<$responseFetchType>(
       $urlExpr,
       $paramArg,
     );
-    return $responseClass.fromJson(response.data!);
+    return $responseParseExpr;
   }
 ''';
   }

@@ -48,4 +48,16 @@ abstract final class StringUtils {
     final uri = Uri.tryParse(s);
     return uri != null && (uri.scheme == 'wss' || uri.scheme == 'ws');
   }
+
+  /// True when [s] is safe to embed verbatim as an app display name.
+  ///
+  /// The display name is interpolated as-is into a YAML scalar
+  /// (pubspec.yaml), XML text (AndroidManifest.xml / Info.plist), a
+  /// single-quoted Dart string literal (every entrypoint), and — in
+  /// vscode_generator.dart — a run-config *file name*. Restricting to
+  /// letters, digits, spaces, hyphens, underscores, and periods keeps it safe
+  /// in all four rather than letting e.g. a colon or quote silently corrupt
+  /// one of them.
+  static bool isValidDisplayName(String s) =>
+      RegExp(r'^[\p{L}\p{N} \-_.]+$', unicode: true).hasMatch(s);
 }

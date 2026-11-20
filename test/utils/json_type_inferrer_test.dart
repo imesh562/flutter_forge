@@ -34,6 +34,13 @@ void main() {
         result.fields.firstWhere((f) => f['name'] == 'score')['type'],
         'double',
       );
+      // Fields describe the array's element type, not a flattened object.
+      expect(result.isList, isTrue);
+    });
+
+    test('isList is false for a plain JSON object', () {
+      const json = '{"id": 1}';
+      expect(JsonTypeInferrer.extractFields(json).isList, isFalse);
     });
 
     test('infers List<String> for string arrays', () {
@@ -300,6 +307,16 @@ final class LoginResponse extends Equatable {
         'LoginResponse',
       );
       expect(nested, isEmpty);
+    });
+  });
+
+  group('JsonTypeInferrer.itemClassName', () {
+    test('singularizes and pascal-cases a plural endpoint name', () {
+      expect(JsonTypeInferrer.itemClassName('getUsers'), 'GetUser');
+    });
+
+    test('leaves an already-singular name pascal-cased', () {
+      expect(JsonTypeInferrer.itemClassName('user'), 'User');
     });
   });
 }

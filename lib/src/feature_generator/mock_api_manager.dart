@@ -110,5 +110,15 @@ final class MockApiManager {
     return '$value'; // num, bool
   }
 
-  static String _escapeString(String s) => s.replaceAll(r'\', r'\\').replaceAll("'", r"\'");
+  // Order matters: escape backslashes first so the backslashes this method
+  // introduces for `'` and `$` don't themselves get doubled. `$` must be
+  // escaped too — mock_responses.dart embeds these as regular (non-raw)
+  // single-quoted Dart string literals, so an unescaped `$name` or `${expr}`
+  // in a mock value is real string interpolation, not literal text — best
+  // case a compile error, worst case it silently evaluates whatever
+  // identifier happens to be in scope.
+  static String _escapeString(String s) => s
+      .replaceAll(r'\', r'\\')
+      .replaceAll("'", r"\'")
+      .replaceAll(r'$', r'\$');
 }

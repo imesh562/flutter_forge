@@ -35,7 +35,16 @@ final class ProjectWizard {
       },
     );
 
-    final appDisplayName = await _prompt('App display name');
+    final appDisplayName = await _prompt(
+      'App display name',
+      validate: (v) {
+        if (!StringUtils.isValidDisplayName(v)) {
+          return 'Use only letters, digits, spaces, hyphens, underscores, and '
+              'periods — this name is embedded in YAML, XML, and file names.';
+        }
+        return null;
+      },
+    );
 
     final outputDirectory = await _prompt(
       'Output directory (absolute path where the project folder will be created)',

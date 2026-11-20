@@ -295,6 +295,17 @@ final class FeatureWizard {
     final feature = await _resolveFeature(features);
 
     final endpointName = await _prompt('Endpoint name (camelCase, e.g. getUserProfile)');
+
+    final existingEndpoints = await _registry.endpointsForFeature(feature);
+    if (existingEndpoints.contains(endpointName)) {
+      stdout.writeln(
+        '\n✖ Endpoint "$endpointName" already exists for feature "$feature".\n'
+        '  Choose a different name, or use "Update request / response model" '
+        'to modify its existing models.',
+      );
+      return;
+    }
+
     final endpointType = await _promptChoice('Endpoint type', options: ['REST', 'WebSocket']);
 
     var method = 'GET';
@@ -310,83 +321,118 @@ final class FeatureWizard {
             options: ['No', 'Yes'],
           ) ==
           1;
+    } else {
+      // Every WebSocket endpoint shares the same base URL (WebhookHelper) but
+      // can open its own independent, reused connection at a distinct path.
+      // Leaving this blank connects to the base URL itself.
+      path = await _promptOptional(
+            'WebSocket endpoint path (e.g. /chat) — blank uses the base URL only',
+          ) ??
+          '';
     }
 
     List<Map<String, String>> requestFields = [];
     List<NestedClassDef> requestNested = [];
+    var requestIsList = false;
     if (hasRequest) {
       stdout.writeln('\n── Request fields (enter empty name to stop) ──');
-      (requestFields, requestNested) = await _collectFields();
+      // A list-shaped request body only makes sense where a body is actually
+      // sent — GET/DELETE go out as query parameters, which can't be a list.
+      final requestAllowsList = method != 'GET' && method != 'DELETE';
+      (requestFields, requestNested, requestIsList) =
+          await _collectFields(allowList: requestAllowsList);
     }
 
     stdout.writeln('\n── Response fields (enter empty name to stop) ──');
-    final (responseFields, responseNested) = await _collectFields();
+    // WebSocket responses are parsed one message at a time, so a top-level
+    // list sample doesn't map onto a single event.
+    final responseAllowsList = endpointType != 1;
+    final (responseFields, responseNested, responseIsList) =
+        await _collectFields(allowList: responseAllowsList);
 
     final requestClass = hasRequest
         ? '${StringUtils.toPascalCase(endpointName)}Request'
         : null;
     final responseClass = '${StringUtils.toPascalCase(endpointName)}Response';
+    final responseItemClassName =
+        responseIsList ? JsonTypeInferrer.itemClassName(endpointName) : null;
 
     final blocChoice = await _resolveBlocTarget(feature);
 
     stdout.writeln('\nGenerating...');
 
-    if (hasRequest) {
-      await _modelGen.generateRequest(
+    try {
+      if (hasRequest) {
+        await _modelGen.generateRequest(
+          projectPath: _projectPath,
+          pkg: _pkg,
+          feature: feature,
+          endpointName: endpointName,
+          fields: requestFields,
+          nestedClasses: requestNested,
+          isList: requestIsList,
+        );
+      }
+
+      await _modelGen.generateResponse(
         projectPath: _projectPath,
         pkg: _pkg,
         feature: feature,
         endpointName: endpointName,
-        fields: requestFields,
-        nestedClasses: requestNested,
+        fields: responseFields,
+        nestedClasses: responseNested,
+        isList: responseIsList,
+        itemClassName: responseItemClassName,
       );
+
+      await _datasourceGen.addMethod(
+        projectPath: _projectPath,
+        pkg: _pkg,
+        feature: feature,
+        endpointName: endpointName,
+        method: method,
+        path: path,
+        endpointType: endpointType == 1 ? 'websocket' : 'rest',
+        hasRequest: hasRequest,
+        requestIsList: requestIsList,
+        responseIsList: responseIsList,
+        responseItemClassName: responseItemClassName,
+      );
+
+      await _repoGen.addMethod(
+        projectPath: _projectPath,
+        pkg: _pkg,
+        feature: feature,
+        endpointName: endpointName,
+        endpointType: endpointType == 1 ? 'websocket' : 'rest',
+        hasRequest: hasRequest,
+      );
+
+      await _applyBlocChoice(
+        blocChoice: blocChoice,
+        feature: feature,
+        endpointName: endpointName,
+        requestClass: requestClass,
+        responseClass: responseClass,
+        endpointType: endpointType == 1 ? 'websocket' : 'rest',
+      );
+
+      await _registry.addEndpoint(
+        feature: feature,
+        endpointName: endpointName,
+        type: endpointType == 1 ? 'websocket' : 'rest',
+        blocOrCubitName: blocChoice['name'] as String,
+        blocOrCubitType: blocChoice['type'] as String,
+      );
+    } on StateError catch (e) {
+      stdout.writeln(
+        '\n✖ $e\n'
+        '  Generation stopped partway through — files written before this '
+        'error are still on disk, but the endpoint is not registered. '
+        'Check lib/features/$feature/ before retrying.',
+      );
+      return;
     }
-
-    await _modelGen.generateResponse(
-      projectPath: _projectPath,
-      pkg: _pkg,
-      feature: feature,
-      endpointName: endpointName,
-      fields: responseFields,
-      nestedClasses: responseNested,
-    );
-
-    await _datasourceGen.addMethod(
-      projectPath: _projectPath,
-      pkg: _pkg,
-      feature: feature,
-      endpointName: endpointName,
-      method: method,
-      path: path,
-      endpointType: endpointType == 1 ? 'websocket' : 'rest',
-      hasRequest: hasRequest,
-    );
-
-    await _repoGen.addMethod(
-      projectPath: _projectPath,
-      pkg: _pkg,
-      feature: feature,
-      endpointName: endpointName,
-      endpointType: endpointType == 1 ? 'websocket' : 'rest',
-      hasRequest: hasRequest,
-    );
-
-    await _applyBlocChoice(
-      blocChoice: blocChoice,
-      feature: feature,
-      endpointName: endpointName,
-      requestClass: requestClass,
-      responseClass: responseClass,
-      endpointType: endpointType == 1 ? 'websocket' : 'rest',
-    );
-
-    await _registry.addEndpoint(
-      feature: feature,
-      endpointName: endpointName,
-      type: endpointType == 1 ? 'websocket' : 'rest',
-      blocOrCubitName: blocChoice['name'] as String,
-      blocOrCubitType: blocChoice['type'] as String,
-    );
 
     stdout.writeln('\n✔ Generation complete.');
     stdout.writeln('  Run: dart run build_runner build --delete-conflicting-outputs');
@@ -407,7 +453,7 @@ final class FeatureWizard {
     );
 
     stdout.writeln('\n── Entity fields ──');
-    final (fields, nestedClasses) = await _collectFields();
+    final (fields, nestedClasses, _) = await _collectFields();
 
     stdout.writeln('\nGenerating...');
 
@@ -465,9 +511,7 @@ final class FeatureWizard {
     final filePath = p.join(entitiesDir, entityFileName);
 
     final source = await File(filePath).readAsString();
-    final currentFields = JsonTypeInferrer.parseFieldsFromSource(source);
-    final existingNested =
-        JsonTypeInferrer.parseNestedClassesFromSource(source, entityName);
+    final (currentFields, existingNested) = _scopedFieldsFor(source, entityName);
 
     stdout.writeln('\n  Current fields in $entityName:');
     if (currentFields.isEmpty) {
@@ -495,7 +539,7 @@ final class FeatureWizard {
     switch (action) {
       case 0: // Add
         stdout.writeln('\n── New fields to add ──');
-        final (newFields, newNested) = await _collectFields();
+        final (newFields, newNested, _) = await _collectFields();
         updatedFields = [...currentFields, ...newFields];
         updatedNested = [
           ...existingNested,
@@ -544,7 +588,7 @@ final class FeatureWizard {
 
       case 3: // Replace all
         stdout.writeln('\n── Replacement fields ──');
-        final (replacedFields, replacedNested) = await _collectFields();
+        final (replacedFields, replacedNested, _) = await _collectFields();
         updatedFields = replacedFields;
         updatedNested = replacedNested;
 
@@ -1212,9 +1256,19 @@ class $widgetName extends StatelessWidget {
     }
 
     final source = await file.readAsString();
-    final currentFields = JsonTypeInferrer.parseFieldsFromSource(source);
-    final existingNested =
-        JsonTypeInferrer.parseNestedClassesFromSource(source, className);
+
+    // A list-shaped model is emitted as `typedef Foo = List<Item>;` — the
+    // item class name is always derived deterministically from the endpoint
+    // name, so we can detect the shape with a direct substring check rather
+    // than re-parsing the typedef.
+    final expectedItemClassName = JsonTypeInferrer.itemClassName(endpointName);
+    final isExistingList =
+        source.contains('typedef $className = List<$expectedItemClassName>;');
+
+    final (currentFields, existingNested) = _scopedFieldsFor(
+      source,
+      isExistingList ? expectedItemClassName : className,
+    );
 
     stdout.writeln('\n  Current fields in $className:');
     if (currentFields.isEmpty) {
@@ -1238,11 +1292,13 @@ class $widgetName extends StatelessWidget {
 
     List<Map<String, String>> updatedFields;
     var updatedNested = existingNested;
+    var updatedIsList = isExistingList;
+    var updatedItemClassName = isExistingList ? expectedItemClassName : null;
 
     switch (action) {
       case 0: // Add
         stdout.writeln('\n── New fields to add ──');
-        final (newFields, newNested) = await _collectFields();
+        final (newFields, newNested, _) = await _collectFields();
         updatedFields = [...currentFields, ...newFields];
         // Merge: keep existing nested classes, add new ones that aren't already present.
         updatedNested = [
@@ -1292,9 +1348,12 @@ class $widgetName extends StatelessWidget {
 
       case 3: // Replace all
         stdout.writeln('\n── Replacement fields ──');
-        final (replacedFields, replacedNested) = await _collectFields();
+        final (replacedFields, replacedNested, replacedIsList) =
+            await _collectFields();
         updatedFields = replacedFields;
         updatedNested = replacedNested;
+        updatedIsList = replacedIsList;
+        updatedItemClassName = replacedIsList ? expectedItemClassName : null;
 
       default:
         return;
@@ -1310,6 +1369,8 @@ class $widgetName extends StatelessWidget {
         fields: updatedFields,
         nestedClasses: updatedNested,
         forceOverwrite: true,
+        isList: updatedIsList,
+        itemClassName: updatedItemClassName,
       );
     } else {
       await _modelGen.generateRequest(
@@ -1320,6 +1381,8 @@ class $widgetName extends StatelessWidget {
         fields: updatedFields,
         nestedClasses: updatedNested,
         forceOverwrite: true,
+        isList: updatedIsList,
+        itemClassName: updatedItemClassName,
       );
     }
 
@@ -1502,14 +1565,44 @@ class $widgetName extends StatelessWidget {
     }
   }
 
-  Future<(List<Map<String, String>>, List<NestedClassDef>)> _collectFields() async {
+  /// Returns the fields declared on [targetClassName] within [source], plus
+  /// every *other* class in the file as sibling nested classes.
+  ///
+  /// Scoping to the specific class (via [JsonTypeInferrer.parseAllClassesFromSource])
+  /// matters when the file has nested classes: a naive whole-file field scan
+  /// would flatten a nested class's fields into the target class's field
+  /// list, silently corrupting Add/Remove/Rename/Replace during an update.
+  /// If [targetClassName] isn't found (e.g. a freshly-created file with no
+  /// fields yet), it's treated as having no fields rather than throwing.
+  (List<Map<String, String>>, List<NestedClassDef>) _scopedFieldsFor(
+    String source,
+    String targetClassName,
+  ) {
+    final allClasses = JsonTypeInferrer.parseAllClassesFromSource(source);
+    final target = allClasses.firstWhere(
+      (c) => c.className == targetClassName,
+      orElse: () => NestedClassDef(className: targetClassName, fields: const []),
+    );
+    final siblings =
+        allClasses.where((c) => c.className != targetClassName).toList();
+    return (target.fields, siblings);
+  }
+
+  /// Collects fields either manually or by pasting a JSON sample.
+  ///
+  /// When [allowList] is false, a top-level JSON array is rejected (with a
+  /// message explaining why) instead of silently producing a broken model —
+  /// e.g. GET/DELETE requests are sent as query parameters, which cannot be a
+  /// list, and WebSocket responses are parsed one message at a time.
+  Future<(List<Map<String, String>>, List<NestedClassDef>, bool)>
+      _collectFields({bool allowList = true}) async {
     final mode = await _promptChoice(
       'How would you like to define fields?',
       options: ['Enter manually', 'Paste JSON'],
     );
-    if (mode == 1) return _collectFieldsFromJson();
+    if (mode == 1) return _collectFieldsFromJson(allowList: allowList);
     final fields = await _collectFieldsManually();
-    return (fields, <NestedClassDef>[]);
+    return (fields, <NestedClassDef>[], false);
   }
 
   Future<List<Map<String, String>>> _collectFieldsManually() async {
@@ -1526,8 +1619,8 @@ class $widgetName extends StatelessWidget {
     return fields;
   }
 
-  Future<(List<Map<String, String>>, List<NestedClassDef>)>
-      _collectFieldsFromJson() async {
+  Future<(List<Map<String, String>>, List<NestedClassDef>, bool)>
+      _collectFieldsFromJson({bool allowList = true}) async {
     stdout.writeln(
       '  Paste your JSON below. Press Enter on an empty line when done.',
     );
@@ -1546,7 +1639,24 @@ class $widgetName extends StatelessWidget {
     try {
       final result = JsonTypeInferrer.extractFields(rawJson);
 
-      stdout.writeln('\n  Detected ${result.fields.length} field(s):');
+      if (result.isList && !allowList) {
+        stdout.writeln(
+          '\n  ✖ This endpoint can\'t use a list-shaped JSON sample here '
+          '(the value has to be sent as a single object).',
+        );
+        stdout.writeln('  Falling back to manual entry.');
+        final fields = await _collectFieldsManually();
+        return (fields, <NestedClassDef>[], false);
+      }
+
+      if (result.isList) {
+        stdout.writeln(
+          '\n  Detected a JSON array — modelling the element type with '
+          '${result.fields.length} field(s):',
+        );
+      } else {
+        stdout.writeln('\n  Detected ${result.fields.length} field(s):');
+      }
       for (final f in result.fields) {
         stdout.writeln('    ${f['type']?.padRight(24)} ${f['name']}');
       }
@@ -1567,15 +1677,15 @@ class $widgetName extends StatelessWidget {
       if (confirm == 'n') {
         stdout.writeln('  Falling back to manual entry.');
         final fields = await _collectFieldsManually();
-        return (fields, <NestedClassDef>[]);
+        return (fields, <NestedClassDef>[], false);
       }
 
-      return (result.fields, result.nestedClasses);
+      return (result.fields, result.nestedClasses, result.isList);
     } on FormatException catch (e) {
       stdout.writeln('\n  ✖ ${e.message}');
       stdout.writeln('  Falling back to manual entry.');
       final fields = await _collectFieldsManually();
-      return (fields, <NestedClassDef>[]);
+      return (fields, <NestedClassDef>[], false);
     }
   }
 

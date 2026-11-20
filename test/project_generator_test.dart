@@ -123,4 +123,60 @@ void main() {
       expect(Directory(config.projectPath).existsSync(), isFalse);
     });
   });
+
+  group('ProjectGenerator.buildNextStepsBanner — step numbering', () {
+    /// Extracts the leading step numbers in the order they appear in the
+    /// banner, e.g. "1", "2", "3" — regardless of which sections are shown.
+    List<String> stepNumbersIn(String banner) => RegExp(r'║\s*(\d+)\. ')
+        .allMatches(banner)
+        .map((m) => m.group(1)!)
+        .toList();
+
+    test('is sequential with no duplicates or gaps: no firebase, no flavors',
+        () {
+      final banner = gen.buildNextStepsBanner(
+        _makeConfigWith(useFirebase: false, useFlavors: false),
+      );
+      expect(stepNumbersIn(banner), ['1', '2', '3']);
+    });
+
+    test('is sequential with no duplicates or gaps: firebase only', () {
+      final banner = gen.buildNextStepsBanner(
+        _makeConfigWith(useFirebase: true, useFlavors: false),
+      );
+      expect(stepNumbersIn(banner), ['1', '2', '3', '4', '5']);
+    });
+
+    test('is sequential with no duplicates or gaps: flavors only', () {
+      final banner = gen.buildNextStepsBanner(
+        _makeConfigWith(useFirebase: false, useFlavors: true),
+      );
+      expect(stepNumbersIn(banner), ['1', '2', '3']);
+    });
+
+    test('is sequential with no duplicates or gaps: firebase and flavors', () {
+      final banner = gen.buildNextStepsBanner(
+        _makeConfigWith(useFirebase: true, useFlavors: true),
+      );
+      expect(stepNumbersIn(banner), ['1', '2', '3', '4', '5']);
+    });
+  });
 }
+
+ProjectConfig _makeConfigWith({required bool useFirebase, required bool useFlavors}) =>
+    ProjectConfig(
+      projectName: 'test_app',
+      appDisplayName: 'Test App',
+      orgIdentifier: 'com.example',
+      outputDirectory: Directory.systemTemp.path,
+      flavorSettings: [
+        const FlavorSettings(
+          flavor: Flavor.prod,
+          bundleId: 'com.example.testapp',
+          baseUrl: 'https://api.example.com',
+          wsUrl: 'wss://api.example.com',
+        ),
+      ],
+      useFirebase: useFirebase,
+      useFlavors: useFlavors,
+    );

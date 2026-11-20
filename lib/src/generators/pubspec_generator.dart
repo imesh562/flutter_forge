@@ -45,6 +45,7 @@ dependencies:
   # Networking
   dio: ^5.7.0
   web_socket_channel: ^3.0.1
+  connectivity_plus: ^6.1.0
 
   # Navigation
   go_router: ^14.2.7

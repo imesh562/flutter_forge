@@ -71,6 +71,33 @@ void main() {
     });
   });
 
+  group('StringUtils.isValidDisplayName', () {
+    test('accepts a plain name', () {
+      expect(StringUtils.isValidDisplayName('My App'), isTrue);
+    });
+    test('accepts hyphens, underscores, and periods', () {
+      expect(StringUtils.isValidDisplayName('My-App_2.0'), isTrue);
+    });
+    test('accepts unicode letters', () {
+      expect(StringUtils.isValidDisplayName('日本語アプリ'), isTrue);
+    });
+    test('rejects a colon (breaks pubspec.yaml)', () {
+      expect(StringUtils.isValidDisplayName('My App: Pro'), isFalse);
+    });
+    test('rejects a double quote (breaks XML attributes)', () {
+      expect(StringUtils.isValidDisplayName('My "Cool" App'), isFalse);
+    });
+    test('rejects a single quote (breaks the Dart string literal)', () {
+      expect(StringUtils.isValidDisplayName("My App's"), isFalse);
+    });
+    test('rejects a slash (breaks the vscode run-config file name)', () {
+      expect(StringUtils.isValidDisplayName('My/App'), isFalse);
+    });
+    test('rejects an empty string', () {
+      expect(StringUtils.isValidDisplayName(''), isFalse);
+    });
+  });
+
   group('StringUtils round-trip', () {
     test('PascalCase → snake → PascalCase', () {
       const original = 'GetUserProfile';

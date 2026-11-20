@@ -8,10 +8,20 @@ final class NestedClassDef {
 }
 
 /// Result of parsing a JSON sample — top-level fields plus any nested classes.
+///
+/// When [isList] is true, the sample's root was a JSON array: [fields] and
+/// [nestedClasses] describe the *element* type, not a top-level object, and
+/// callers must generate a `List<Item>` shape rather than a class carrying
+/// those fields directly.
 final class JsonParseResult {
-  const JsonParseResult({required this.fields, required this.nestedClasses});
+  const JsonParseResult({
+    required this.fields,
+    required this.nestedClasses,
+    this.isList = false,
+  });
   final List<Map<String, String>> fields;
   final List<NestedClassDef> nestedClasses;
+  final bool isList;
 }
 
 /// Infers Dart field types from a JSON object.
@@ -30,10 +40,13 @@ abstract final class JsonTypeInferrer {
     }
 
     final Map<String, dynamic> obj;
+    final bool isList;
     if (decoded is Map<String, dynamic>) {
       obj = decoded;
+      isList = false;
     } else if (decoded is List && decoded.isNotEmpty && decoded.first is Map) {
       obj = (decoded.first as Map).cast<String, dynamic>();
+      isList = true;
     } else {
       throw FormatException(
         'Expected a JSON object or a non-empty array of objects.',
@@ -42,8 +55,16 @@ abstract final class JsonTypeInferrer {
 
     final nestedClasses = <NestedClassDef>[];
     final fields = _fieldsFrom(obj, nestedClasses);
-    return JsonParseResult(fields: fields, nestedClasses: nestedClasses);
+    return JsonParseResult(
+      fields: fields,
+      nestedClasses: nestedClasses,
+      isList: isList,
+    );
   }
+
+  /// Derives a PascalCase, singularized class name for the element type of a
+  /// top-level list — e.g. an endpoint named `getUsers` yields `GetUser`.
+  static String itemClassName(String key) => _toPascalCase(_singularize(key));
 
   static List<Map<String, String>> _fieldsFrom(
     Map<String, dynamic> map,
