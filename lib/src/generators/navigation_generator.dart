@@ -66,8 +66,9 @@ abstract final class AppRoutes {
     await FileUtils.writeFile(
       p.join(base, 'shared', 'usecases', 'logout_usecase.dart'),
       '''
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:injectable/injectable.dart';
+
+import 'package:$pkg/core/storage/preferences_service.dart';
 
 /// Clears all locally-stored session credentials.
 ///
@@ -77,16 +78,20 @@ import 'package:injectable/injectable.dart';
 /// Keeping this in the domain layer means the cleanup logic is testable
 /// independently of the UI and can be extended (e.g. invalidate a server
 /// session, clear Hive boxes) without touching presentation code.
+///
+/// Goes through [PreferencesService] — the same place [ApiHelper] reads the
+/// token from — rather than a separately-instantiated storage backend, so
+/// logout can never silently fail to clear the token that's actually in use.
 @lazySingleton
 class LogoutUseCase {
-  const LogoutUseCase();
+  const LogoutUseCase(this._prefs);
 
-  static const _storage = FlutterSecureStorage();
+  final PreferencesService _prefs;
 
-  /// Deletes the auth token from secure storage.
+  /// Deletes the auth token.
   /// Returns normally even if the token was already absent.
   Future<void> call() async {
-    await _storage.delete(key: 'auth_token');
+    await _prefs.clearAuthToken();
   }
 }
 ''',
@@ -152,11 +157,15 @@ class _SplashPageState extends State<SplashPage>
   @override
   void initState() {
     super.initState();
-    _navigate();
+    // Deferred to the next frame — calling context.go() (or dispatching a
+    // bloc event that synchronously emits) directly in initState throws
+    // "setState() or markNeedsBuild() called during build", since the
+    // widget tree hasn't finished its first build yet. Keep this deferral
+    // when you replace the stub logic below with a real stored-auth check.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _navigate());
   }
 
-  Future<void> _navigate() async {
-    await Future<void>.delayed(const Duration(seconds: 2));
+  void _navigate() {
     if (mounted) context.go(AppRoutes.login);
   }
 

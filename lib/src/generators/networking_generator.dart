@@ -61,8 +61,8 @@ abstract final class NetworkConfig {
       p.join(base, 'api_helper.dart'),
       '''
 import 'package:dio/dio.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import 'package:$pkg/core/storage/preferences_service.dart';
 import 'package:$pkg/error/exceptions.dart';
 import 'package:$pkg/flavors/flavor_config.dart';
 import 'network_config.dart';
@@ -71,7 +71,7 @@ import 'network_config.dart';
 /// registered `as: ApiHelper`, in every environment, so real network calls
 /// stay available at all times behind [MockApiHelper]'s `super` delegation.
 class ApiHelper {
-  ApiHelper() {
+  ApiHelper(PreferencesService prefs) : _prefs = prefs {
     _dio = Dio(
       BaseOptions(
         baseUrl: FlavorConfig.instance.baseUrl,
@@ -87,13 +87,15 @@ class ApiHelper {
   }
 
   late final Dio _dio;
-  static const _storage = FlutterSecureStorage();
+  final PreferencesService _prefs;
 
-  /// Injects the stored auth token into every outgoing request.
-  /// Token is read from the device secure keychain / keystore.
+  /// Injects the stored auth token into every outgoing request. Reads
+  /// through [PreferencesService] — the same place the token is written
+  /// after login — rather than a separately-instantiated storage backend,
+  /// so the two can never silently disagree about where the token lives.
   Interceptor _authInterceptor() => InterceptorsWrapper(
-        onRequest: (options, handler) async {
-          final token = await _storage.read(key: 'auth_token');
+        onRequest: (options, handler) {
+          final token = _prefs.authToken;
           if (token != null) {
             options.headers['Authorization'] = 'Bearer \$token';
           }
@@ -243,6 +245,8 @@ import 'mock_responses.dart';
 /// hit a live server without changing anything else.
 @LazySingleton(as: ApiHelper)
 final class MockApiHelper extends ApiHelper {
+  MockApiHelper(super.prefs);
+
   @override
   Future<Response<T>> get<T>(
     String path, {

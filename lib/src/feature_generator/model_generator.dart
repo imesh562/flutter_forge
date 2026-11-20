@@ -70,7 +70,7 @@ import 'package:json_annotation/json_annotation.dart';
 $extraImports
 part '$partName';
 
-@JsonSerializable(explicitToJson: true)
+@JsonSerializable(explicitToJson: true, includeIfNull: false)
 final class $className {
   const $className({
 $constructorParams
@@ -179,7 +179,7 @@ ${nestedBlocks.isNotEmpty ? '\n$nestedBlocks\n' : ''}''',
     final constructorParams =
         n.fields.map((f) => '    this.${f['name']},').join('\n');
     return '''
-@JsonSerializable(explicitToJson: true)
+@JsonSerializable(explicitToJson: true, includeIfNull: false)
 final class ${n.className} {
   const ${n.className}({
 $constructorParams

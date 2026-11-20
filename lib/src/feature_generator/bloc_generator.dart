@@ -519,33 +519,47 @@ final class ${pascal}Loading extends ${pascal}State with AppLoadingState {
             '  List<Object?> get props => const [];\n'
             '}\n\n'
             'final class ${endpointPascal}Success extends ${blocPascal}State {\n'
-            '  const ${endpointPascal}Success(this.data);\n'
+            '  ${endpointPascal}Success(this.data) : emittedAt = DateTime.now();\n'
             '  final $responseClass data;\n'
+            '  // emit() skips notifying listeners when the new state == the\n'
+            '  // current one. Two consecutive fetches with identical content\n'
+            '  // (e.g. an empty list, or a refresh where nothing changed) would\n'
+            '  // otherwise be silently dropped, leaving the page stuck. This\n'
+            '  // timestamp keeps every emission distinct.\n'
+            '  final DateTime emittedAt;\n'
             '  @override\n'
-            '  List<Object?> get props => [data];\n'
+            '  List<Object?> get props => [data, emittedAt];\n'
             '}\n\n'
             'final class ${endpointPascal}Failure extends ${blocPascal}State with FailureState {\n'
-            '  const ${endpointPascal}Failure(this.failure);\n'
+            '  ${endpointPascal}Failure(this.failure) : emittedAt = DateTime.now();\n'
             '  @override\n'
             '  final Failure failure;\n'
+            '  final DateTime emittedAt;\n'
             '  @override\n'
-            '  List<Object?> get props => [failure];\n'
+            '  List<Object?> get props => [failure, emittedAt];\n'
             '}\n\n';
       } else {
         // REST: Success + Failure only; AppLoadingState is on the BLoC itself.
         newStates =
             'final class ${endpointPascal}Success extends ${blocPascal}State {\n'
-            '  const ${endpointPascal}Success(this.data);\n'
+            '  ${endpointPascal}Success(this.data) : emittedAt = DateTime.now();\n'
             '  final $responseClass data;\n'
+            '  // emit() skips notifying listeners when the new state == the\n'
+            '  // current one. Two consecutive fetches with identical content\n'
+            '  // (e.g. an empty list, or a refresh where nothing changed) would\n'
+            '  // otherwise be silently dropped, leaving the page stuck. This\n'
+            '  // timestamp keeps every emission distinct.\n'
+            '  final DateTime emittedAt;\n'
             '  @override\n'
-            '  List<Object?> get props => [data];\n'
+            '  List<Object?> get props => [data, emittedAt];\n'
             '}\n\n'
             'final class ${endpointPascal}Failure extends ${blocPascal}State with FailureState {\n'
-            '  const ${endpointPascal}Failure(this.failure);\n'
+            '  ${endpointPascal}Failure(this.failure) : emittedAt = DateTime.now();\n'
             '  @override\n'
             '  final Failure failure;\n'
+            '  final DateTime emittedAt;\n'
             '  @override\n'
-            '  List<Object?> get props => [failure];\n'
+            '  List<Object?> get props => [failure, emittedAt];\n'
             '}\n\n';
       }
       return content.replaceFirst(
@@ -674,32 +688,46 @@ final class ${pascal}Loading extends ${pascal}State with AppLoadingState {
             '  List<Object?> get props => const [];\n'
             '}\n\n'
             'final class ${endpointPascal}Success extends ${cubitPascal}State {\n'
-            '  const ${endpointPascal}Success(this.data);\n'
+            '  ${endpointPascal}Success(this.data) : emittedAt = DateTime.now();\n'
             '  final $responseClass data;\n'
+            '  // emit() skips notifying listeners when the new state == the\n'
+            '  // current one. Two consecutive fetches with identical content\n'
+            '  // (e.g. an empty list, or a refresh where nothing changed) would\n'
+            '  // otherwise be silently dropped, leaving the page stuck. This\n'
+            '  // timestamp keeps every emission distinct.\n'
+            '  final DateTime emittedAt;\n'
             '  @override\n'
-            '  List<Object?> get props => [data];\n'
+            '  List<Object?> get props => [data, emittedAt];\n'
             '}\n\n'
             'final class ${endpointPascal}Failure extends ${cubitPascal}State with FailureState {\n'
-            '  const ${endpointPascal}Failure(this.failure);\n'
+            '  ${endpointPascal}Failure(this.failure) : emittedAt = DateTime.now();\n'
             '  @override\n'
             '  final Failure failure;\n'
+            '  final DateTime emittedAt;\n'
             '  @override\n'
-            '  List<Object?> get props => [failure];\n'
+            '  List<Object?> get props => [failure, emittedAt];\n'
             '}\n\n';
       } else {
         newStates =
             'final class ${endpointPascal}Success extends ${cubitPascal}State {\n'
-            '  const ${endpointPascal}Success(this.data);\n'
+            '  ${endpointPascal}Success(this.data) : emittedAt = DateTime.now();\n'
             '  final $responseClass data;\n'
+            '  // emit() skips notifying listeners when the new state == the\n'
+            '  // current one. Two consecutive fetches with identical content\n'
+            '  // (e.g. an empty list, or a refresh where nothing changed) would\n'
+            '  // otherwise be silently dropped, leaving the page stuck. This\n'
+            '  // timestamp keeps every emission distinct.\n'
+            '  final DateTime emittedAt;\n'
             '  @override\n'
-            '  List<Object?> get props => [data];\n'
+            '  List<Object?> get props => [data, emittedAt];\n'
             '}\n\n'
             'final class ${endpointPascal}Failure extends ${cubitPascal}State with FailureState {\n'
-            '  const ${endpointPascal}Failure(this.failure);\n'
+            '  ${endpointPascal}Failure(this.failure) : emittedAt = DateTime.now();\n'
             '  @override\n'
             '  final Failure failure;\n'
+            '  final DateTime emittedAt;\n'
             '  @override\n'
-            '  List<Object?> get props => [failure];\n'
+            '  List<Object?> get props => [failure, emittedAt];\n'
             '}\n\n';
       }
       return content.replaceFirst(
@@ -831,26 +859,35 @@ final class ${pascal}Loading extends ${pascal}State with AppLoadingState {
       if (responseType != null && responseType.isNotEmpty) {
         successState =
             'final class ${actionPascal}Success extends ${blocPascal}State {\n'
-            '  const ${actionPascal}Success(this.data);\n'
+            '  ${actionPascal}Success(this.data) : emittedAt = DateTime.now();\n'
             '  final $responseType data;\n'
+            '  // emit() skips notifying listeners when the new state == the\n'
+            '  // current one — this timestamp keeps every emission distinct so\n'
+            '  // repeating this action never gets silently swallowed.\n'
+            '  final DateTime emittedAt;\n'
             '  @override\n'
-            '  List<Object?> get props => [data];\n'
+            '  List<Object?> get props => [data, emittedAt];\n'
             '}\n\n';
       } else {
         successState =
             'final class ${actionPascal}Success extends ${blocPascal}State {\n'
-            '  const ${actionPascal}Success();\n'
+            '  ${actionPascal}Success() : emittedAt = DateTime.now();\n'
+            '  // emit() skips notifying listeners when the new state == the\n'
+            '  // current one — this timestamp keeps every emission distinct so\n'
+            '  // repeating this action never gets silently swallowed.\n'
+            '  final DateTime emittedAt;\n'
             '  @override\n'
-            '  List<Object?> get props => const [];\n'
+            '  List<Object?> get props => [emittedAt];\n'
             '}\n\n';
       }
       final failureState =
           'final class ${actionPascal}Failure extends ${blocPascal}State with FailureState {\n'
-          '  const ${actionPascal}Failure(this.failure);\n'
+          '  ${actionPascal}Failure(this.failure) : emittedAt = DateTime.now();\n'
           '  @override\n'
           '  final Failure failure;\n'
+          '  final DateTime emittedAt;\n'
           '  @override\n'
-          '  List<Object?> get props => [failure];\n'
+          '  List<Object?> get props => [failure, emittedAt];\n'
           '}\n\n';
       return content.replaceFirst(
         _stateSentinel,
@@ -910,26 +947,35 @@ final class ${pascal}Loading extends ${pascal}State with AppLoadingState {
       if (responseType != null && responseType.isNotEmpty) {
         successState =
             'final class ${actionPascal}Success extends ${cubitPascal}State {\n'
-            '  const ${actionPascal}Success(this.data);\n'
+            '  ${actionPascal}Success(this.data) : emittedAt = DateTime.now();\n'
             '  final $responseType data;\n'
+            '  // emit() skips notifying listeners when the new state == the\n'
+            '  // current one — this timestamp keeps every emission distinct so\n'
+            '  // repeating this action never gets silently swallowed.\n'
+            '  final DateTime emittedAt;\n'
             '  @override\n'
-            '  List<Object?> get props => [data];\n'
+            '  List<Object?> get props => [data, emittedAt];\n'
             '}\n\n';
       } else {
         successState =
             'final class ${actionPascal}Success extends ${cubitPascal}State {\n'
-            '  const ${actionPascal}Success();\n'
+            '  ${actionPascal}Success() : emittedAt = DateTime.now();\n'
+            '  // emit() skips notifying listeners when the new state == the\n'
+            '  // current one — this timestamp keeps every emission distinct so\n'
+            '  // repeating this action never gets silently swallowed.\n'
+            '  final DateTime emittedAt;\n'
             '  @override\n'
-            '  List<Object?> get props => const [];\n'
+            '  List<Object?> get props => [emittedAt];\n'
             '}\n\n';
       }
       final failureState =
           'final class ${actionPascal}Failure extends ${cubitPascal}State with FailureState {\n'
-          '  const ${actionPascal}Failure(this.failure);\n'
+          '  ${actionPascal}Failure(this.failure) : emittedAt = DateTime.now();\n'
           '  @override\n'
           '  final Failure failure;\n'
+          '  final DateTime emittedAt;\n'
           '  @override\n'
-          '  List<Object?> get props => [failure];\n'
+          '  List<Object?> get props => [failure, emittedAt];\n'
           '}\n\n';
       return content.replaceFirst(
         _stateSentinel,
